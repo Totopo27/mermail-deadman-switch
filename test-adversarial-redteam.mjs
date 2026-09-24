@@ -1,6 +1,6 @@
 /**
  * Adversarial Red Teaming & Stress-Test Suite
- * Inspired by Lysios / Black Hat AI Security Threat Models
+ * Comprehensive Zero-Trust Threat Model Validation
  * 
  * Tests the Mermail Dead Man's Switch against 8 real-world attack vectors:
  * 1. Indirect Prompt Injection (IPI) - Executive / System Impersonation
@@ -10,7 +10,7 @@
  * 5. Fake Death Certificate / Social Engineering on Notary AI
  * 6. On-Chain Premature PDA Drain Attempt (Anchor Timelock Attack)
  * 7. Unauthorized Guardian Hold / Sabotage
- * 8. Unicode Homoglyph & Obfuscation Attack (Lysios Parseltongue style)
+ * 8. Unicode Homoglyph & Zero-Width Obfuscation Attack
  */
 
 import crypto from "node:crypto";
@@ -219,9 +219,9 @@ async function runAdversarialTestSuite() {
   }
 
   // -------------------------------------------------------------------------
-  // ATTACK 8: Unicode Homoglyphs & Obfuscation (Lysios Parseltongue Style)
+  // ATTACK 8: Unicode Homoglyphs & Obfuscation Attack
   // -------------------------------------------------------------------------
-  console.log("[ATTACK 8/8] Obfuscated Unicode / Homoglyph Attack (Parseltongue Style)...");
+  console.log("[ATTACK 8/8] Obfuscated Unicode / Homoglyph Attack (Visual Spoofing)...");
   console.log("   - Vector: Cyrillic homoglyphs and zero-width spaces attempting to spoof commands.");
 
   // Cyrillic 'а', 'е', 'о' mixed with Latin text

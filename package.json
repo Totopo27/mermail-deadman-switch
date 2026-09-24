@@ -6,6 +6,9 @@
   "main": "deadman-engine.mjs",
   "scripts": {
     "test": "node skills/mermail-deadman-switch/tests/test-runner.mjs",
+    "test:live": "node test-real-resources.mjs",
+    "test:worker": "node test-cloudflare-worker.mjs",
+    "test:contract": "node test-solana-smart-contract.mjs",
     "start": "node test-deadman-orchestrator.mjs"
   },
   "keywords": [

@@ -1,7 +1,9 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { DeadMansSwitchEngine } from "../../../deadman-engine.mjs";
+import { ed25519 } from "@noble/curves/ed25519";
+import bs58 from "bs58";
+import { DeadMansSwitchEngine, NotaryAgentAdvisor } from "../../../deadman-engine.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -13,11 +15,18 @@ function runTests() {
   const scenariosRaw = fs.readFileSync(path.resolve(__dirname, "scenarios.json"), "utf-8");
   const scenarios = JSON.parse(scenariosRaw);
 
+  // Generate an authentic owner Solana keypair for crypto tests
+  const ownerPrivKey = ed25519.utils.randomPrivateKey();
+  const ownerPubKey = ed25519.getPublicKey(ownerPrivKey);
+  const ownerPubKeyB58 = bs58.encode(ownerPubKey);
+
   const engine = new DeadMansSwitchEngine({
     custodianEmail: "xentest@mermail.app",
     ownerEmail: "xentest2@mermail.app",
+    ownerSolPubkey: ownerPubKeyB58,
     beneficiaryEmail: "xen3test3@mermail.app",
-    beneficiarySolWallet: "F9tjfnvJUy8EYip947GhYM4YW7kG6U5hDcMFc3DRFbwE"
+    beneficiarySolWallet: "F9tjfnvJUy8EYip947GhYM4YW7kG6U5hDcMFc3DRFbwE",
+    guardianEmails: ["guardian@trusted-notary.org"]
   });
 
   let passedCount = 0;
@@ -97,6 +106,113 @@ function runTests() {
         passedCount++;
       } else {
         console.log("        [FAIL]: Sender spoofing bypass succeeded.\n");
+      }
+    } else if (sc.scenario.startsWith("DMS-08")) {
+      // Cryptographic signature test (Ed25519)
+      engine.state.status = "ARMED";
+      engine.requireCryptoSignature = true;
+
+      // 1. Valid signed payload
+      const timestamp = Date.now();
+      const nonce = "nonce-abc-123";
+      const msgText = `DMS-HEARTBEAT:${timestamp}:${nonce}`;
+      const msgBytes = new TextEncoder().encode(msgText);
+      const validSig = bs58.encode(ed25519.sign(msgBytes, ownerPrivKey));
+
+      const validEmail = {
+        sender: "xentest2@mermail.app",
+        subject: "[CHECK-IN] Valid Signed Proof of Life",
+        signaturePayload: {
+          timestamp,
+          nonce,
+          signature: validSig,
+          publicKey: ownerPubKeyB58,
+          message: msgText
+        }
+      };
+
+      const validAccepted = engine.auditOwnerHeartbeat(validEmail);
+
+      // 2. Tampered signature payload
+      const tamperedEmail = {
+        sender: "xentest2@mermail.app",
+        subject: "[CHECK-IN] Tampered Signature",
+        signaturePayload: {
+          timestamp,
+          nonce: "nonce-tampered-999",
+          signature: validSig,
+          publicKey: ownerPubKeyB58,
+          message: "DMS-HEARTBEAT:different-msg"
+        }
+      };
+
+      const tamperedRejected = !engine.auditOwnerHeartbeat(tamperedEmail);
+      engine.requireCryptoSignature = false; // Reset flag
+
+      if (validAccepted && tamperedRejected) {
+        console.log("        [PASS]: Cryptographic Proof of Life verified via Ed25519; tampered signature rejected.\n");
+        passedCount++;
+      } else {
+        console.log(`        [FAIL]: Crypto check failed. valid=${validAccepted}, tamperedRejected=${tamperedRejected}\n`);
+      }
+    } else if (sc.scenario.startsWith("DMS-09")) {
+      // Multi-tiered grace escalation & Guardian Emergency Hold
+      engine.state.status = "ARMED";
+      engine.state.lastHeartbeatAt = new Date(Date.now() - 46 * 24 * 60 * 60 * 1000).toISOString(); // 46 days
+
+      const tieredStatus = engine.evaluateTieredStatus();
+      const isTier3 = tieredStatus.tier === 3 && tieredStatus.label === "GUARDIAN_ESCALATION";
+
+      // Guardian places an emergency hold
+      const holdRes = engine.applyGuardianHold({
+        guardianEmail: "guardian@trusted-notary.org",
+        holdDays: 14,
+        reason: "Owner admitted to hospital, pending direct verification"
+      });
+
+      const holdCheck = engine.evaluateSwitchStatus();
+      const holdActive = holdCheck.status === "GUARDIAN_HOLD" && !holdCheck.isTriggered;
+
+      if (isTier3 && holdRes.success && holdActive) {
+        console.log("        [PASS]: Tier 3 Guardian Escalation reached and Guardian Emergency Hold applied.\n");
+        passedCount++;
+      } else {
+        console.log("        [FAIL]: Tiered escalation or guardian hold failed.\n");
+      }
+    } else if (sc.scenario.startsWith("DMS-10")) {
+      // Shamir Secret Sharing 2-of-3 threshold test
+      const masterSecret = sc.input.masterSecret;
+      const vault = engine.setupThresholdVault(masterSecret, { n: 3, k: 2 });
+
+      // Reconstruct using Shard 1 (beneficiary) + Shard 2 (agent custodied)
+      const reconstructed = engine.reconstructVaultSecret([vault.beneficiaryShare, vault.custodianShare]);
+      // Reconstruct using Shard 2 (agent) + Shard 3 (guardian)
+      const altReconstructed = engine.reconstructVaultSecret([vault.custodianShare, vault.guardianShare]);
+
+      if (reconstructed === masterSecret && altReconstructed === masterSecret) {
+        console.log("        [PASS]: Shamir (2-of-3) threshold vault split and multi-pair reconstruction successful.\n");
+        passedCount++;
+      } else {
+        console.log("        [FAIL]: Shamir reconstruction did not match master secret.\n");
+      }
+    } else if (sc.scenario.startsWith("DMS-11")) {
+      // Dual-Core Notary Advisor test
+      const guidance = NotaryAgentAdvisor.generateBeneficiaryGuidance({
+        ownerName: sc.input.ownerName,
+        beneficiaryEmail: sc.input.beneficiaryEmail,
+        custodiedShare: { id: 2, data: "7f4c0a1b2c3d" },
+        solRescueAmount: 0.05
+      });
+
+      const emergencyAnalysis = NotaryAgentAdvisor.analyzeInboundEmergencyHoldRequest(
+        "Urgent: I was in an accident and currently internado in emergency care. Please pause everything."
+      );
+
+      if (guidance.subject.includes("Emergency Contingency") && emergencyAnalysis.flaggedAsEmergency) {
+        console.log("        [PASS]: AI Notary Guidance formulated and natural language emergency distress detected.\n");
+        passedCount++;
+      } else {
+        console.log("        [FAIL]: AI Notary Advisor failed to generate onboarding or detect distress.\n");
       }
     }
   }

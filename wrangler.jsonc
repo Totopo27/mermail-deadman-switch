@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mermail-deadman-worker",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["0 */12 * * *"]
+  },
+  "vars": {
+    "SOLANA_RPC_URL": "https://api.devnet.solana.com",
+    "MERMAIL_MCP_URL": "https://console.mermail.app/mcp"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "DEADMAN_KV",
+      "id": "deadman_switch_state_kv"
+    }
+  ]
+}

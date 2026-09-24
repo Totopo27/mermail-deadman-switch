@@ -73,7 +73,7 @@ async function callMcp(apiKey, name, args) {
 
 async function run() {
   console.log("===============================================================");
-  console.log("⏳  MERMAIL DEAD MAN'S SWITCH - DIGITAL INHERITANCE & RESCUE");
+  console.log("[DMS] MERMAIL DEAD MAN'S SWITCH - DIGITAL INHERITANCE & RESCUE");
   console.log("===============================================================\n");
 
   const engine = new DeadMansSwitchEngine({
@@ -96,7 +96,7 @@ async function run() {
   const statusEval = engine.evaluateSwitchStatus();
 
   if (statusEval.isTriggered) {
-    console.log(`🚨 \x1b[31mALERT: GRACE PERIOD EXPIRED ${statusEval.daysOverdue} DAYS AGO WITHOUT PROOF OF LIFE\x1b[0m`);
+    console.log(`[ALERT] Grace period expired ${statusEval.daysOverdue} days ago without proof of life.`);
     console.log("   Owner did not respond to warnings or emit a valid check-in.");
     console.log("   Initiating irrevocable contingency protocol towards beneficiary...\n");
 
@@ -129,7 +129,7 @@ Mermail Dead Man's Switch Agent Vault`;
       }
     });
 
-    console.log("✅ Contingency email dispatched to Beneficiary:");
+    console.log("[OK] Contingency email dispatched to Beneficiary:");
     console.log("   - Message ID:", sendRes.result?.content?.[0]?.text || "Delivered");
     console.log("   - Vault Status: [DISMISSED & DELIVERED]");
 
@@ -141,16 +141,16 @@ Mermail Dead Man's Switch Agent Vault`;
         amount_decimal: engine.state.contingencyDirectives.emergencyRescueSolAmount,
         memo: "DMS_EMERGENCY_RESCUE_TRANSFER"
       });
-      console.log("✅ PayBox transfer dispatched successfully:");
+      console.log("[OK] PayBox transfer dispatched successfully:");
       console.log("   - Details:", transferRes.result?.content?.[0]?.text || JSON.stringify(transferRes.result || transferRes));
     } catch (payboxErr) {
-      console.warn("⚠️ PayBox transfer notice (Devnet fallback / test environment):", payboxErr.message);
+      console.warn("[NOTICE] PayBox transfer notice (Devnet fallback / test environment):", payboxErr.message);
     }
     console.log("   - Solana Devnet Explorer:");
     console.log(`     https://explorer.solana.com/address/${BENEFICIARY_WALLET}?cluster=devnet\n`);
 
   } else if (statusEval.isWarning) {
-    console.log(`⚠️ \x1b[33mWARNING: HEARTBEAT INTERVAL EXCEEDED ${statusEval.daysOverdue} DAYS AGO\x1b[0m`);
+    console.log(`[WARNING] Heartbeat interval exceeded ${statusEval.daysOverdue} days ago.`);
     console.log(`   Switch transitioned to WARNING_ISSUED state.`);
     console.log(`   Remaining grace window: ${statusEval.graceHoursRemaining} hours before irrevocable trigger.`);
     console.log("   Sending urgent warning notice to Owner...");
@@ -177,12 +177,12 @@ Mermail Dead Man's Switch Agent Vault`;
       }
     });
 
-    console.log("✅ Grace period alert dispatched to Owner:");
+    console.log("[OK] Grace period alert dispatched to Owner:");
     console.log("   - Message ID:", warnRes.result?.content?.[0]?.text || "Delivered");
     console.log("   - Switch Status: [WARNING_ISSUED]\n");
 
   } else {
-    console.log(`🟢 Switch operating normally (ARMED). ${statusEval.daysRemaining} days remaining until next check-in.`);
+    console.log(`[INFO] Switch operating normally (ARMED). ${statusEval.daysRemaining} days remaining until next check-in.`);
   }
 
   console.log("===============================================================");

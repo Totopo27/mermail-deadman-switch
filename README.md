@@ -9,7 +9,7 @@
 
 ---
 
-## 🌟 Overview & Motivation
+## Overview & Motivation
 
 In Web3 and decentralized finance, catastrophic events such as incapacitation or sudden demise frequently lead to the permanent loss of crypto assets, seed phrases, private keys, and infrastructure access. Traditional legal wills are slow, geographically bounded, and lack direct integration with decentralized protocols.
 
@@ -19,7 +19,7 @@ The **Mermail Dead Man's Switch** transforms an AI agent into an autonomous, not
 
 ---
 
-## 🔄 Lifecycle & State Machine
+## Lifecycle & State Machine
 
 The switch advances through a deterministic 4-state lifecycle:
 
@@ -53,7 +53,7 @@ The switch advances through a deterministic 4-state lifecycle:
 
 ---
 
-## 🛡️ Security Architecture & Threat Model
+## Security Architecture & Threat Model
 
 The engine operates under a zero-tolerance threat model designed to resist malicious manipulation and prompt injection attacks:
 
@@ -67,7 +67,7 @@ The engine operates under a zero-tolerance threat model designed to resist malic
 
 ---
 
-## 🛠️ Mermail MCP Tool Integration
+## Mermail MCP Tool Integration
 
 | Operation | MCP Tool | Purpose | Risk Tier |
 |---|---|---|---|
@@ -79,7 +79,7 @@ The engine operates under a zero-tolerance threat model designed to resist malic
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 mermail-deadman-switch/
@@ -105,7 +105,7 @@ mermail-deadman-switch/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 - Node.js v18+ (tested on Node v20/v24)
@@ -126,29 +126,29 @@ npm test
 Expected output:
 ```text
 ===============================================================
-🧪  TEST SUITE & SCENARIO VALIDATION: MERMAIL DEAD MAN'S SWITCH
+TEST SUITE & SCENARIO VALIDATION: MERMAIL DEAD MAN'S SWITCH
 ===============================================================
 
 [TEST]: DMS-01: Standard Owner Heartbeat
-        ✅ PASS: Valid heartbeat acknowledged, timer reset, ARMED state maintained.
+        [PASS]: Valid heartbeat acknowledged, timer reset, ARMED state maintained.
 
 [TEST]: DMS-02: Grace Period Expiration Without Heartbeat
-        ✅ PASS: Inactivity & grace expiration detected; TRIGGERED state irrevocably engaged.
+        [PASS]: Inactivity & grace expiration detected; TRIGGERED state irrevocably engaged.
 
 [TEST]: DMS-03: Unauthorized Third-Party Sabotage / Fake Heartbeat
-        ✅ PASS: Sabotage attempt rejected. Only authorized owner address can submit proof of life.
+        [PASS]: Sabotage attempt rejected. Only authorized owner address can submit proof of life.
 
 [TEST]: DMS-04: Destination Wallet Manipulation Attempt (Prompt Injection)
-        ✅ PASS: Beneficiary rescue wallet immutability preserved. Prompt injection blocked.
+        [PASS]: Beneficiary rescue wallet immutability preserved. Prompt injection blocked.
 
 [TEST]: DMS-05: Grace Period Detection (WARNING_ISSUED)
-        ✅ PASS: Grace window detected (WARNING_ISSUED), remaining grace: 24h.
+        [PASS]: Grace window detected (WARNING_ISSUED), remaining grace: 24h.
 
 [TEST]: DMS-06: Post-Trigger Irrevocability Invariant
-        ✅ PASS: Irrevocability invariant upheld. Late check-in while in TRIGGERED state was rejected.
+        [PASS]: Irrevocability invariant upheld. Late check-in while in TRIGGERED state was rejected.
 
 [TEST]: DMS-07: Display Name and Substring Spoofing Prevention
-        ✅ PASS: Display name & substring spoofing attack rejected successfully.
+        [PASS]: Display name & substring spoofing attack rejected successfully.
 
 ===============================================================
 TEST SUMMARY: 7/7 SCENARIOS COMPLETED SUCCESSFULLY (100%)
@@ -163,5 +163,5 @@ npm start
 
 ---
 
-## 📜 License
+## License
 MIT License. Created by [Totopo27](https://github.com/Totopo27) for the Superteam Earn Bounty.

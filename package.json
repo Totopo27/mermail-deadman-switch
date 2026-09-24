@@ -1,0 +1,22 @@
+{
+  "name": "mermail-deadman-switch",
+  "version": "1.0.0",
+  "description": "Autonomous Digital Contingency, Inheritance, and Dead Man's Switch Agent for Mermail and Solana",
+  "type": "module",
+  "main": "deadman-engine.mjs",
+  "scripts": {
+    "test": "node skills/mermail-deadman-switch/tests/test-runner.mjs",
+    "start": "node test-deadman-orchestrator.mjs"
+  },
+  "keywords": [
+    "mermail",
+    "agent-skill",
+    "dead-mans-switch",
+    "solana",
+    "superteam",
+    "paybox",
+    "contingency"
+  ],
+  "author": "Totopo27",
+  "license": "MIT"
+}

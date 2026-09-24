@@ -46,10 +46,11 @@ In Web3, private keys, seed phrases, and digital directives are irrevocably lost
 - **Immutable Beneficiary Policy**: Destination wallets and beneficiary identities are fixed at instantiation and cannot be redirected by email instructions.
 
 ### Verified Test Evidence
-- **Unit & Scenario Test Suite**: 11/11 tests passed (100% pass rate covering check-ins, expiration, sabotage rejection, wallet immutability, Ed25519, Shamir, and AI Notary).
-- **Live Resources Test Suite**: 12/12 tests passed against live Solana Devnet RPC (Slot verified, 10 SOL balance) and Mermail Cloud Console MCP (`https://console.mermail.app/mcp`).
-- **Cloudflare Worker Test Suite**: 5/5 tests passed (1-Click API, Status, Cron Trigger, Webhooks, Guardian Hold).
-- **Solana Smart Contract Test Suite**: 6/6 tests passed (PDA derivation, self-custody deposits/withdrawals, ping, timelock enforcement, guardian hold, autonomous claim).
+- **Unit & Scenario Test Suite (`npm test`)**: 11/11 tests passed (100% pass rate covering check-ins, expiration, sabotage rejection, wallet immutability, Ed25519, Shamir, and AI Notary).
+- **Live Resources Test Suite (`npm run test:live`)**: 12/12 tests passed against live Solana Devnet RPC (Slot verified, 10 SOL balance) and Mermail Cloud Console MCP (`https://console.mermail.app/mcp`).
+- **Cloudflare Worker Test Suite (`npm run test:worker`)**: 5/5 tests passed (1-Click API, Status, Cron Trigger, Webhooks, Guardian Hold).
+- **Solana Smart Contract Test Suite (`npm run test:contract`)**: 6/6 tests passed (PDA derivation, self-custody deposits/withdrawals, ping, timelock enforcement, guardian hold, autonomous claim).
+- **Adversarial Red Team Stress-Test Suite (`npm run test:redteam`)**: 8/8 attack vectors neutralized (100% pass rate covering Executive IPI, beneficiary redirection, heartbeat spam, Ed25519 replay attacks, social engineering, premature PDA drain, unauthorized holds, and Unicode homoglyphs).
 
 ### Live Solana Devnet Deployment & Operational Vault PDA
 - **Program ID**: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`
@@ -94,4 +95,5 @@ Adds the `mermail-deadman-switch` skill: an autonomous digital contingency, inhe
 - **Live Suite (`npm run test:live`)**: 12/12 passed on live Solana Devnet + Mermail Console MCP.
 - **Worker Suite (`npm run test:worker`)**: 5/5 passed.
 - **Contract Suite (`npm run test:contract`)**: 6/6 passed.
+- **Red Team Suite (`npm run test:redteam`)**: 8/8 attack vectors neutralized (100%).
 ```

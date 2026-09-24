@@ -50,6 +50,12 @@ In Web3, private keys, seed phrases, and digital directives are irrevocably lost
 - **Live Resources Test Suite**: 12/12 tests passed against live Solana Devnet RPC (Slot verified, 10 SOL balance) and Mermail Cloud Console MCP (`https://console.mermail.app/mcp`).
 - **Cloudflare Worker Test Suite**: 5/5 tests passed (1-Click API, Status, Cron Trigger, Webhooks, Guardian Hold).
 - **Solana Smart Contract Test Suite**: 6/6 tests passed (PDA derivation, self-custody deposits/withdrawals, ping, timelock enforcement, guardian hold, autonomous claim).
+
+### Live Solana Devnet Deployment
+- **Program ID**: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`
+- **Deploy Tx Hash**: `3kr8rU4tncvGsNPSjkRzL3dGTbxGP2agNmJSuW7VHCAXtdTmXhJErrU2671KL2EfdCjSTW1GRe5S32Xbc1eF1occ`
+- **Solana Explorer**: https://explorer.solana.com/address/E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX?cluster=devnet
+- **Program Loader**: `BPFLoaderUpgradeab1e11111111111111111111111` (Executable: true)
 ```
 
 ---

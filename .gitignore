@@ -8,3 +8,4 @@ Thumbs.db
 .atl/
 target/
 .cargo_cache/
+deployer-keypair.json

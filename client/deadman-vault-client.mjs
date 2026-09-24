@@ -5,7 +5,7 @@
 
 import { PublicKey } from "@solana/web3.js";
 
-export const DEADMAN_PROGRAM_ID = new PublicKey("DMSvauLt11111111111111111111111111111111111");
+export const DEADMAN_PROGRAM_ID = new PublicKey("E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX");
 
 /**
  * Derives the deterministic PDA address for a user's Dead Man's Switch Vault.

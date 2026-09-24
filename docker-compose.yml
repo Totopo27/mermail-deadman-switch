@@ -1,0 +1,10 @@
+services:
+  anchor-builder:
+    image: quay.io/ottersec/anchor:v1.2.0
+    container_name: deadman-anchor-builder
+    working_dir: /workdir
+    volumes:
+      - .:/workdir
+    environment:
+      - CARGO_HOME=/workdir/.cargo_cache
+    command: anchor build

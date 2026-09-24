@@ -1,0 +1,19 @@
+[toolchain]
+anchor_version = "0.30.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+mermail_deadman_vault = "E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX"
+
+[programs.devnet]
+mermail_deadman_vault = "E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX"
+
+[provider]
+cluster = "devnet"
+wallet = "/workdir/deployer-keypair.json"
+
+[scripts]
+test = "node test-solana-smart-contract.mjs"

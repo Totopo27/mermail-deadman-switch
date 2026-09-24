@@ -1,19 +1,21 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
-declare_id!("DMSvauLt11111111111111111111111111111111111");
+declare_id!("E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX");
 
 #[program]
 pub mod mermail_deadman_vault {
     use super::*;
 
     /// Initializes a new Dead Man's Switch Vault PDA for the owner.
+    /// Supports individual wallets OR Squads Multisig vaults for owner/beneficiary/guardian.
     pub fn initialize_vault(
         ctx: Context<InitializeVault>,
         heartbeat_interval_seconds: i64,
         grace_period_seconds: i64,
         beneficiary: Pubkey,
         guardian: Option<Pubkey>,
+        oracle_attestation: Option<Pubkey>,
     ) -> Result<()> {
         require!(heartbeat_interval_seconds > 0, DeadmanError::InvalidInterval);
         require!(grace_period_seconds > 0, DeadmanError::InvalidGracePeriod);
@@ -24,6 +26,7 @@ pub mod mermail_deadman_vault {
         vault.owner = ctx.accounts.owner.key();
         vault.beneficiary = beneficiary;
         vault.guardian = guardian;
+        vault.oracle_attestation = oracle_attestation;
         vault.heartbeat_interval_seconds = heartbeat_interval_seconds;
         vault.grace_period_seconds = grace_period_seconds;
         vault.last_heartbeat_timestamp = clock.unix_timestamp;
@@ -32,14 +35,15 @@ pub mod mermail_deadman_vault {
         vault.bump = ctx.bumps.vault_account;
 
         msg!(
-            "Dead Man's Switch Vault initialized for owner {}. Beneficiary: {}",
+            "Dead Man's Switch Vault initialized for owner {}. Beneficiary: {}. Oracle: {:?}",
             vault.owner,
-            vault.beneficiary
+            vault.beneficiary,
+            vault.oracle_attestation
         );
         Ok(())
     }
 
-    /// Owner pings the vault to reset the proof-of-life heartbeat.
+    /// Owner (or Squads Multisig) pings the vault to reset the proof-of-life heartbeat.
     pub fn ping_heartbeat(ctx: Context<PingHeartbeat>) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
@@ -92,7 +96,7 @@ pub mod mermail_deadman_vault {
         Ok(())
     }
 
-    /// Designated guardian places a temporary emergency hold (e.g. during hospitalization).
+    /// Designated guardian (or Guardian Squads multisig) places a temporary emergency hold.
     pub fn apply_guardian_hold(ctx: Context<GuardianAction>, hold_seconds: i64) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
@@ -109,27 +113,42 @@ pub mod mermail_deadman_vault {
         Ok(())
     }
 
-    /// Beneficiary claims the inheritance once the timelock mathematically expires.
-    /// This requires NO server, NO email, and NO intermediaries.
+    /// Authorized legal or medical oracle certifies death/incapacitation with an on-chain attestation.
+    /// This immediately unlocks the vault without waiting for timer expiration.
+    pub fn attest_oracle_trigger(ctx: Context<OracleAttestation>, certificate_hash: [u8; 32]) -> Result<()> {
+        let vault = &mut ctx.accounts.vault_account;
+        require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
+
+        vault.status = VaultStatus::Triggered;
+
+        msg!(
+            "Oracle attestation verified! Certificate hash: {:?}. Vault irrevocably triggered.",
+            certificate_hash
+        );
+        Ok(())
+    }
+
+    /// Beneficiary claims the inheritance once the timelock mathematically expires
+    /// OR once an authorized oracle has attested contingency.
     pub fn claim_inheritance(ctx: Context<ClaimInheritance>) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        // Mathematical invariant: Timelock must be fully expired
-        let deadline = vault.last_heartbeat_timestamp
-            .checked_add(vault.heartbeat_interval_seconds)
-            .ok_or(DeadmanError::MathOverflow)?
-            .checked_add(vault.grace_period_seconds)
-            .ok_or(DeadmanError::MathOverflow)?;
+        // If not already triggered by an oracle attestation, verify timelock
+        if vault.status != VaultStatus::Triggered {
+            let deadline = vault.last_heartbeat_timestamp
+                .checked_add(vault.heartbeat_interval_seconds)
+                .ok_or(DeadmanError::MathOverflow)?
+                .checked_add(vault.grace_period_seconds)
+                .ok_or(DeadmanError::MathOverflow)?;
 
-        require!(now >= deadline, DeadmanError::TimelockNotExpired);
-        require!(now >= vault.hold_until_timestamp, DeadmanError::GuardianHoldActive);
+            require!(now >= deadline, DeadmanError::TimelockNotExpired);
+            require!(now >= vault.hold_until_timestamp, DeadmanError::GuardianHoldActive);
 
-        // Lock vault irrevocably
-        vault.status = VaultStatus::Triggered;
+            vault.status = VaultStatus::Triggered;
+        }
 
-        // Transfer all available funds (keeping rent or emptying to beneficiary)
         let vault_info = vault.to_account_info();
         let beneficiary_info = ctx.accounts.beneficiary.to_account_info();
         let balance = vault_info.lamports();
@@ -227,6 +246,19 @@ pub struct GuardianAction<'info> {
 }
 
 #[derive(Accounts)]
+pub struct OracleAttestation<'info> {
+    #[account(
+        mut,
+        seeds = [b"deadman_vault", vault_account.owner.as_ref()],
+        bump = vault_account.bump,
+        constraint = vault_account.oracle_attestation == Some(oracle.key()) @ DeadmanError::UnauthorizedOracle
+    )]
+    pub vault_account: Account<'info, VaultAccount>,
+
+    pub oracle: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct ClaimInheritance<'info> {
     #[account(
         mut,
@@ -246,6 +278,7 @@ pub struct VaultAccount {
     pub owner: Pubkey,
     pub beneficiary: Pubkey,
     pub guardian: Option<Pubkey>,
+    pub oracle_attestation: Option<Pubkey>,
     pub heartbeat_interval_seconds: i64,
     pub grace_period_seconds: i64,
     pub last_heartbeat_timestamp: i64,
@@ -289,6 +322,8 @@ pub enum DeadmanError {
     UnauthorizedGuardian,
     #[msg("Signer is not the designated beneficiary of this vault")]
     UnauthorizedBeneficiary,
+    #[msg("Signer is not the authorized legal or medical oracle")]
+    UnauthorizedOracle,
     #[msg("Mathematical overflow occurred")]
     MathOverflow,
 }

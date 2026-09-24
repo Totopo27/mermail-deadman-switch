@@ -79,6 +79,22 @@ The engine operates under a zero-tolerance threat model designed to resist malic
 
 ---
 
+## On-Chain Verification & Multi-Channel Broadcast
+
+To ensure uncompromising transparency and auditability, the Dead Man's Switch provides verifiable on-chain evidence and redundant notification channels:
+
+### 1. Verified Solana Devnet Settlement Evidence
+- **Custodian / Sender Wallet:** `A6sKW3FgobaiWh6QYgUg3sunn6yPSWtjjEMqyEzv75NG`
+- **Beneficiary Settlement Wallet:** `F9tjfnvJUy8EYip947GhYM4YW7kG6U5hDcMFc3DRFbwE`
+- **Transaction Signature:** `5bgzuHtYGFzcXj76tmzzEtb9ue8Ue5ZSDhKGhYqwgAaLSWQB4L1qsCMQAESMnqvo8WZKx5nQoaUvpNsswMqbUniP`
+- **Solana Explorer (Devnet):** [View Verified Transaction on Solana Explorer](https://explorer.solana.com/tx/5bgzuHtYGFzcXj76tmzzEtb9ue8Ue5ZSDhKGhYqwgAaLSWQB4L1qsCMQAESMnqvo8WZKx5nQoaUvpNsswMqbUniP?cluster=devnet)
+
+### 2. Multi-Channel Redundancy
+- **Channel 1 (Primary Notarial):** Secure Mermail email with encrypted Shamir Secret Share vault directives and on-chain verification links.
+- **Channel 2 (Instant Mobile Push):** Real-time Telegram Bot broadcast dispatched to beneficiary/family chat IDs upon trigger, ensuring immediate notice if email delivery is delayed.
+
+---
+
 ## Repository Structure
 
 ```

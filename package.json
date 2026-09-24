@@ -18,5 +18,8 @@
     "contingency"
   ],
   "author": "Totopo27",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.99.0"
+  }
 }

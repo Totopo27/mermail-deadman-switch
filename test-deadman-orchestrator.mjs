@@ -92,7 +92,46 @@ async function run() {
   console.log(`[Grace Window]:      ${engine.state.gracePeriodHours} hours`);
   console.log(`[Last Heartbeat]:    ${engine.state.lastHeartbeatAt}\n`);
 
-  console.log("[1] Evaluating owner inactivity and heartbeat status...");
+  console.log("[1] Auditing custodian inbox via Mermail list_emails...");
+  let latestHeartbeatFound = false;
+  try {
+    const listRes = await callMcp(CUSTODIAN_KEY, "list_emails", {
+      mailboxId: CUSTODIAN_MAILBOX_ID,
+      query: { folder: "inbox", limit: 10, agent_safe_content: true }
+    });
+
+    let emails = [];
+    if (listRes.result?.structuredContent?.emails) {
+      emails = listRes.result.structuredContent.emails;
+    } else if (listRes.result?.content?.[0]?.text) {
+      const parsed = JSON.parse(listRes.result.content[0].text);
+      emails = parsed.emails || [];
+    }
+
+    console.log(`   Audited ${emails.length} message(s) in custodian inbox.`);
+    for (const email of emails) {
+      const cleanSender = (email.sender || "").toLowerCase();
+      if (cleanSender.includes(OWNER_EMAIL.toLowerCase())) {
+        const wasAccepted = engine.auditOwnerHeartbeat({
+          sender: email.sender,
+          subject: email.subject,
+          body: email.body || email.snippet || ""
+        });
+        if (wasAccepted) {
+          console.log(`   [PROOF OF LIFE VERIFIED] Valid check-in found in email ${email.id} from ${email.sender}`);
+          latestHeartbeatFound = true;
+          break;
+        }
+      }
+    }
+    if (!latestHeartbeatFound) {
+      console.log("   [AUDIT RESULT] No valid check-in / heartbeat detected in recent messages.");
+    }
+  } catch (inboxErr) {
+    console.warn("   [WARN] Live inbox audit error:", inboxErr.message);
+  }
+
+  console.log("\n[2] Evaluating owner inactivity and heartbeat status...");
   const statusEval = engine.evaluateSwitchStatus();
 
   if (statusEval.isTriggered) {
@@ -100,7 +139,7 @@ async function run() {
     console.log("   Owner did not respond to warnings or emit a valid check-in.");
     console.log("   Initiating irrevocable contingency protocol towards beneficiary...\n");
 
-    console.log("[2] Composing and delivering contingency directives to beneficiary...");
+    console.log("[3] Composing and delivering contingency directives to beneficiary...");
     const rescueText = `NOTARIAL CONTINGENCY NOTICE - DEAD MAN'S SWITCH EXECUTED
 
 Dear ${BENEFICIARY_EMAIL},

@@ -1,69 +1,74 @@
-# Mermail Dead Man's Switch Agent Skill
+# Mermail Dead Man's Switch: Autonomous Digital Contingency & Inheritance Protocol
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Superteam Earn](https://img.shields.io/badge/Superteam_Earn-Bounty-purple.svg)](https://earn.superteam.fun/)
-[![Tests](https://img.shields.io/badge/Tests-7%2F7%20Passing%20(100%25)-brightgreen.svg)]()
+[![Solana Devnet](https://img.shields.io/badge/Solana_Devnet-Verified_Program-green.svg)](https://explorer.solana.com/address/E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX?cluster=devnet)
+[![Tests: 11/11 Passing](https://img.shields.io/badge/Unit_Tests-11%2F11_Passing-brightgreen.svg)]()
+[![Red Team: 8/8 Neutralized](https://img.shields.io/badge/Red_Team-8%2F8_Neutralized-brightgreen.svg)]()
 
-> **Autonomous Digital Contingency, Inheritance, and Dead Man's Switch Agent for Mermail and Solana.**  
+> **Autonomous Digital Contingency, Multi-Asset Inheritance, and Dead Man's Switch Protocol for Mermail and Solana.**  
 > Built for the Superteam Earn *"Build and Demo a Mermail Agent Skill"* Bounty.
 
 ---
 
-## Overview & Motivation
+## Overview & Architecture
 
-In Web3 and decentralized finance, catastrophic events such as incapacitation or sudden demise frequently lead to the permanent loss of crypto assets, seed phrases, private keys, and infrastructure access. Traditional legal wills are slow, geographically bounded, and lack direct integration with decentralized protocols.
+In Web3 and decentralized finance, catastrophic events such as incapacitation or sudden demise frequently lead to the permanent loss of crypto assets, seed phrases, private keys, and infrastructure access. Traditional centralized custodians (notaries, legacy banks) are slow, expensive, and introduce trusted third-party risk. Conversely, naive AI agents reading emails suffer from Indirect Prompt Injection (IPI), SMTP header spoofing, single-point key exposure, and fatal false positives.
 
-The **Mermail Dead Man's Switch** transforms an AI agent into an autonomous, notarial custodian. Operating through secure Mermail communication channels and Solana Agent Wallets (PayBox), it continuously monitors periodic **Proof-of-Life** heartbeats from the principal. If the principal stops responding beyond an agreed grace window, the switch irrevocably executes pre-approved contingency protocols:
-1. **Releasing encrypted directives** (e.g., Shamir Secret Shares, vault credentials) to designated beneficiaries via encrypted notarial emails.
-2. **Dispatching on-chain emergency liquidity** (Solana) via PayBox / Agent Wallet directly to the beneficiary's public address.
+The **Mermail Dead Man's Switch** transforms an AI agent into an autonomous, non-custodial contingency notary leveraging a **Dual-Core Architecture**:
 
----
+1. **Deterministic Mathematical Kernel (Solana Anchor + Node.js Engine):**
+   - **Passive Mixed Liveness:** Monitors on-chain Solana activity (`getSignaturesForAddress`). If the principal executes swaps on Jupiter or transfers on-chain, the timer resets automatically without requiring manual emails.
+   - **Ed25519 Cryptographic Proof of Life:** Active email heartbeats require detached digital signatures matching the owner's Solana keypair, neutralizing spoofed email relays.
+   - **Threshold Custody (Shamir's Secret Sharing 2-of-3):** Secret keys are fragmented across Galois Field $\text{GF}(2^8)$. The agent custodially locks only Shard #2. Breaching the server or inbox yields only useless mathematical noise.
+   - **Native Solana Anchor Smart Contract (`mermail_deadman_vault`):** A PDA-governed vault (`[b"deadman_vault", owner]`, Program ID: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`) enforcing on-chain timelocks, self-custodial withdrawals, SPL Token (USDC) multi-asset custody, Pyth Network price feeds, Squads Multisig compatibility, and legal oracle bypasses (`attest_oracle_trigger`).
+   - **Serverless Cloudflare Worker:** $0/month edge execution with Cron Triggers every 12 hours, 1-Click Vault Setup API, and real-time Mermail webhook receivers.
 
-## Lifecycle & State Machine
-
-The switch advances through a deterministic 4-state lifecycle:
-
-```
-[ ARMED ] ──────────(Inactivity > Interval)─────────► [ WARNING_ISSUED ]
-    ▲                                                          │
-    │                                              (Grace Period Expired)
-(Authentic Heartbeat)                                          │
-    │                                                          ▼
-    └───────────────────────────────────────────────── [ TRIGGERED ] (Irrevocable)
-```
-
-1. **`ARMED` (Active Vigilance):**
-   - The custodian expects periodic check-in emails from the principal within a configured threshold (e.g., every 30 days).
-   - Invariants and directives remain safely locked in custody.
-
-2. **`HEARTBEAT_RECORDED` (Re-arming):**
-   - The principal sends an authentic check-in email (`[CHECK-IN] All operational`).
-   - The agent strictly validates sender authenticity, resets the inactivity timer, clears any pending warnings, and stays in `ARMED`.
-
-3. **`WARNING_ISSUED` (Grace Window Alert):**
-   - If the heartbeat interval lapses without confirmation, the switch transitions to `WARNING_ISSUED`.
-   - The agent dispatches an urgent warning email to the principal with the exact countdown of remaining grace hours (e.g., 48 hours).
-
-4. **`TRIGGERED` (Irrevocable Contingency Protocol):**
-   - If the grace period expires without proof of life:
-     - The switch transitions permanently to `TRIGGERED`.
-     - Directives and secret vault identifiers are dispatched to the beneficiary via `send_email`.
-     - Emergency liquidity is transferred to the beneficiary's Solana wallet via `paybox_request_transfer`.
-     - **Irrevocability Invariant:** Once triggered, no future email can re-arm or undo the switch.
+2. **AI Notary Advisor (Human-Facing Layer):**
+   - Decoupled from execution authority (cannot trigger the switch or mutate recipient wallets).
+   - Generates empathetic, step-by-step recovery guidance for non-technical beneficiaries upon contingency execution.
+   - Analyzes natural language medical/travel distress reports to suggest emergency guardian verification holds.
 
 ---
 
-## Security Architecture & Threat Model
+## Multi-Tiered Deterministic Lifecycle
 
-The engine operates under a zero-tolerance threat model designed to resist malicious manipulation and prompt injection attacks:
+```
+[ARMED] ──(T1: Inactivity)──► [TIER 1: Soft Ping] ──(T2: Warning)──► [TIER 2: Urgent Alert]
+   ▲                                                                          │
+   │                                                                          ▼
+   │                                                             [TIER 3: Guardian Escalation]
+   │                                                                    │              │
+   │                                                 (Guardian Hold)    │              │ (Grace Expired)
+   │                                                        ▼           │              ▼
+   └──(Valid Ed25519 Heartbeat)──────────────────── [GUARDIAN_HOLD] ────┘        [TRIGGERED (Irrevocable)]
+```
 
-| Attack Vector | Vulnerability / Threat | Mitigation Mechanism |
+1. **`ARMED` (Continuous Vigilance):**
+   - Refreshed passively by Solana on-chain activity or actively by Ed25519-signed emails.
+2. **`TIER 1 (Soft Ping - Day 30)`:**
+   - Dispatches a private, non-alarming reminder to the owner with Pyth Network USD valuations.
+3. **`TIER 2 (Multi-Channel Urgent Notice - Day 37)`:**
+   - Escalates priority and warns of impending contingency procedures via email and Telegram.
+4. **`TIER 3 (Guardian Escalation - Day 45)`:**
+   - Alerts designated trusted guardians (or Guardian Squads multisig). Guardians can invoke `applyGuardianHold` (14-day hold, max 60 days cumulative) during medical emergencies.
+5. **`TRIGGERED` (Irrevocable Contingency Protocol - Day 60):**
+   - Releases the custodied Shamir Shard #2 to the beneficiary via secure Mermail email.
+   - Dispatches on-chain rescue funds via PayBox (`paybox_request_transfer`).
+   - Unlocks autonomous multi-asset on-chain inheritance claim (SOL + USDC) via the Anchor Smart Contract PDA.
+
+---
+
+## Security Architecture & Zero-Trust Threat Model
+
+| Attack Vector | Threat Scenario | Mitigation Mechanism |
 |---|---|---|
-| **Indirect Prompt Injection (IPI)** | Attacker sends email claiming to be system admin demanding instant asset transfer. | **Strict layer separation:** Time evaluation and state progression are deterministic JavaScript code logic; LLMs never make financial liquidation decisions based on untrusted email prose. |
-| **Sender Spoofing & Substring Bypass** | Attacker uses display names (`"owner@mermail.app" <hacker@evil.com>`) or substring domains. | **Strict RFC 5322 extraction:** Sender addresses are extracted and compared using exact strict equality (`===`). Display names and substring collisions are completely discarded. |
-| **Replay & Post-Trigger Sabotage** | Attacker attempts to cancel contingency or re-arm switch after directives have been released. | **Irrevocable State Lock:** `auditOwnerHeartbeat` explicitly rejects any heartbeat if status is `TRIGGERED`. |
-| **Destination Wallet Mutation** | Attacker tries to alter settlement wallet address via email instructions. | **Config Immutability:** Beneficiary addresses are hardcoded in verified deployment config. No email instruction can mutate recipient addresses. |
-| **Credential Theft** | Attacker attempts to extract private keys from the agent. | **Delegated Custody:** The agent never holds private keys. Mermail and PayBox operate via blind signing and scoped transaction delegations. |
+| **Indirect Prompt Injection (IPI)** | Attacker sends email claiming to be system admin demanding instant asset transfer. | **Dual-Core Decoupling:** Time evaluation and state progression are deterministic mathematical code; LLMs never make financial liquidation decisions. |
+| **Sender Spoofing & Substring Bypass** | Attacker uses display names (`"owner@mermail.app" <hacker@evil.com>`) or substring domains. | **Ed25519 Signature Requirement:** Heartbeats require detached digital signatures verified on-chain; forged SMTP headers are completely ignored. |
+| **Replay & Post-Trigger Sabotage** | Attacker attempts to cancel contingency or re-arm switch after directives have been released. | **Anti-Replay Filter & Irrevocable State Lock:** Nonces must be unique, timestamps fresh (<24h), and status `TRIGGERED` permanently locks state. |
+| **Destination Wallet Mutation** | Attacker tries to alter settlement wallet address via email instructions. | **Config Immutability & PDA Constraint:** Beneficiary addresses are hardcoded in verified deployment config and Anchor `has_one = beneficiary` constraints. |
+| **Guardian Griefing / Denial of Service** | Corrupt guardian attempts infinite holds to prevent heirs from ever receiving inheritance. | **Cumulative Hold Limit:** Contract enforces `MAX_CUMULATIVE_HOLD_SECONDS = 60 * 86400` total lifetime cap. |
+| **Premature Oracle Trigger** | Malicious or erroneous oracle attempts to trigger vault while owner is alive. | **48h Dispute Window:** Vault enters `OracleDisputePending`; living owner can ping and revert false triggers before claim. |
 
 ---
 
@@ -73,37 +78,46 @@ The engine operates under a zero-tolerance threat model designed to resist malic
 |---|---|---|---|
 | Mailbox Discovery | `list_emails` | Scoped inbox scan for principal check-ins | `Read-only` |
 | Message Audit | `get_email` | Reads email with `agent_safe_content: true` | `Read-only` |
-| Tiered Warning Notice | `send_email` | Alerts principal during grace period | `External effect` |
-| Contingency Release | `send_email` | Releases vault directives to beneficiary | `External effect` |
-| Emergency Transfer | `paybox_request_transfer` | Dispatches rescue SOL to beneficiary wallet | `Financial write` |
+| Tiered Warning Notice | `send_email` | Alerts principal during grace period with Pyth valuations | `External effect` |
+| Contingency Release | `send_email` | Releases Shamir Shard #2 and AI Notary claim guidance | `External effect` |
+| Emergency Transfer | `paybox_request_transfer` | Dispatches rescue SOL/USDC to beneficiary wallet | `Financial write` |
 
 ---
 
-## On-Chain Verification & Multi-Channel Broadcast
+## On-Chain Solana Devnet Evidence
 
-To ensure uncompromising transparency and auditability, the Dead Man's Switch provides verifiable on-chain evidence and redundant notification channels:
-
-### 1. Verified Solana Devnet Settlement Evidence
-- **Custodian / Sender Wallet:** `A6sKW3FgobaiWh6QYgUg3sunn6yPSWtjjEMqyEzv75NG`
-- **Beneficiary Settlement Wallet:** `F9tjfnvJUy8EYip947GhYM4YW7kG6U5hDcMFc3DRFbwE`
-- **Transaction Signature:** `5bgzuHtYGFzcXj76tmzzEtb9ue8Ue5ZSDhKGhYqwgAaLSWQB4L1qsCMQAESMnqvo8WZKx5nQoaUvpNsswMqbUniP`
-- **Solana Explorer (Devnet):** [View Verified Transaction on Solana Explorer](https://explorer.solana.com/tx/5bgzuHtYGFzcXj76tmzzEtb9ue8Ue5ZSDhKGhYqwgAaLSWQB4L1qsCMQAESMnqvo8WZKx5nQoaUvpNsswMqbUniP?cluster=devnet)
-
-### 2. Multi-Channel Redundancy
-- **Channel 1 (Primary Notarial):** Secure Mermail email with encrypted Shamir Secret Share vault directives and on-chain verification links.
-- **Channel 2 (Instant Mobile Push):** Real-time Telegram Bot broadcast dispatched to beneficiary/family chat IDs upon trigger, ensuring immediate notice if email delivery is delayed.
+- **Anchor Program ID:** [`E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`](https://explorer.solana.com/address/E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX?cluster=devnet)
+- **Live Upgraded Deploy Tx:** [`L98mtYU5jnTTuYeFqZiy6HDAy2ipaQBRiuBtZJGdbFJonTDZRqJdPmufMSo5sZFR1ZMgKEWpBRdTRPin82Bt8Rg`](https://explorer.solana.com/tx/L98mtYU5jnTTuYeFqZiy6HDAy2ipaQBRiuBtZJGdbFJonTDZRqJdPmufMSo5sZFR1ZMgKEWpBRdTRPin82Bt8Rg?cluster=devnet)
+- **Live Operational Vault PDA:** [`9DpG5ZiHx25Qd5DJemP4CoA1Q4vtdy2WEAxeV31UNQVx`](https://explorer.solana.com/address/9DpG5ZiHx25Qd5DJemP4CoA1Q4vtdy2WEAxeV31UNQVx?cluster=devnet)
+- **Vault Deposit Tx (0.1 SOL):** [`3gx81wN7uMWv6dnKwTdBpkctmoLQupWyaujnuSxQofJnMuTcAsATMAPWa89KUQeZhZiVtsSfe687SLfUHM83N1FR`](https://explorer.solana.com/tx/3gx81wN7uMWv6dnKwTdBpkctmoLQupWyaujnuSxQofJnMuTcAsATMAPWa89KUQeZhZiVtsSfe687SLfUHM83N1FR?cluster=devnet)
+- **Vault Ping Heartbeat Tx:** [`2GSxAbVnF8PxisZhvTTsu49CVrkzRBd4NrpcKfGFtZmuYNP51dFaDfS46CLdYEBT7hLfqkJ9R6LitBpRjfz91s2i`](https://explorer.solana.com/tx/2GSxAbVnF8PxisZhvTTsu49CVrkzRBd4NrpcKfGFtZmuYNP51dFaDfS46CLdYEBT7hLfqkJ9R6LitBpRjfz91s2i?cluster=devnet)
 
 ---
 
 ## Repository Structure
 
-```
+```text
 mermail-deadman-switch/
-├── deadman-engine.mjs                    # Core state machine, validation & invariants
-├── test-deadman-orchestrator.mjs         # End-to-end MCP orchestration workflow
+├── programs/
+│   └── mermail-deadman-vault/
+│       ├── Cargo.toml                    # Anchor SPL & Pyth dependencies
+│       └── src/
+│           └── lib.rs                    # Solana Anchor Smart Contract (PDA, SPL, Pyth, Timelocks)
+├── client/
+│   └── deadman-vault-client.mjs          # Client SDK for Solana PDA interaction
+├── deadman-engine.mjs                    # Core dual-core state machine & mixed liveness
+├── shamir.mjs                            # Galois Field GF(2^8) Shamir Secret Sharing (2-of-3)
+├── worker.mjs                            # Serverless Cloudflare Edge Worker with Cron Triggers
+├── wrangler.jsonc                        # Cloudflare configuration
+├── Anchor.toml                           # Anchor project configuration
+├── Cargo.toml                            # Cargo workspace definition
 ├── package.json                          # Scripts & dependencies
-├── .env.example                          # Sample environment configuration
-├── .gitignore                            # Secrets & local file exclusion
+├── test-real-resources.mjs               # Live Solana Devnet RPC & Mermail MCP integration tests
+├── test-cloudflare-worker.mjs            # Serverless Edge simulation tests
+├── test-solana-smart-contract.mjs        # Anchor Smart Contract invariant & token tests
+├── test-adversarial-redteam.mjs          # Adversarial Red Team stress-test suite
+├── init-live-vault-devnet.mjs            # Live Devnet Vault initialization & funding script
+├── SUBMISSION_PACK.md                    # Official Superteam Earn submission details
 ├── README.md                             # Project documentation
 └── skills/
     └── mermail-deadman-switch/
@@ -115,66 +129,31 @@ mermail-deadman-switch/
         │   ├── security.md               # Detailed threat model & invariants
         │   └── tools.md                  # MCP tool payloads & parameters
         └── tests/
-            ├── scenarios.json            # 7 threat & operational test scenarios
+            ├── scenarios.json            # 11 structured threat & operational test scenarios
             └── test-runner.mjs           # Autonomous test validation suite
 ```
 
 ---
 
-## Getting Started
+## Comprehensive Test Execution
 
-### 1. Prerequisites
-- Node.js v18+ (tested on Node v20/v24)
-- A Mermail account with MCP enabled (`https://console.mermail.app`)
+Run the complete validation battery covering unit, live network, serverless edge, smart contract, and red-teaming layers:
 
-### 2. Configuration
-Copy `.env.example` to `.env` and fill in your test credentials:
 ```bash
-cp .env.example .env
-```
-
-### 3. Running the Test Suite
-Run the 7 automated security and lifecycle test scenarios:
-```bash
+# 1. Deterministic Unit & Lifecycle Suite (11 scenarios)
 npm test
-```
 
-Expected output:
-```text
-===============================================================
-TEST SUITE & SCENARIO VALIDATION: MERMAIL DEAD MAN'S SWITCH
-===============================================================
+# 2. Live Solana Devnet RPC & Mermail Console MCP Suite (12 scenarios)
+npm run test:live
 
-[TEST]: DMS-01: Standard Owner Heartbeat
-        [PASS]: Valid heartbeat acknowledged, timer reset, ARMED state maintained.
+# 3. Serverless Cloudflare Edge Worker Suite (5 scenarios)
+npm run test:worker
 
-[TEST]: DMS-02: Grace Period Expiration Without Heartbeat
-        [PASS]: Inactivity & grace expiration detected; TRIGGERED state irrevocably engaged.
+# 4. Anchor Smart Contract SPL & Pyth Protocol Suite (7 scenarios)
+npm run test:contract
 
-[TEST]: DMS-03: Unauthorized Third-Party Sabotage / Fake Heartbeat
-        [PASS]: Sabotage attempt rejected. Only authorized owner address can submit proof of life.
-
-[TEST]: DMS-04: Destination Wallet Manipulation Attempt (Prompt Injection)
-        [PASS]: Beneficiary rescue wallet immutability preserved. Prompt injection blocked.
-
-[TEST]: DMS-05: Grace Period Detection (WARNING_ISSUED)
-        [PASS]: Grace window detected (WARNING_ISSUED), remaining grace: 24h.
-
-[TEST]: DMS-06: Post-Trigger Irrevocability Invariant
-        [PASS]: Irrevocability invariant upheld. Late check-in while in TRIGGERED state was rejected.
-
-[TEST]: DMS-07: Display Name and Substring Spoofing Prevention
-        [PASS]: Display name & substring spoofing attack rejected successfully.
-
-===============================================================
-TEST SUMMARY: 7/7 SCENARIOS COMPLETED SUCCESSFULLY (100%)
-===============================================================
-```
-
-### 4. Running the Orchestrator
-Execute the live orchestrator against Mermail MCP:
-```bash
-npm start
+# 5. Adversarial Red Team Stress-Test Suite (8 attack vectors)
+npm run test:redteam
 ```
 
 ---

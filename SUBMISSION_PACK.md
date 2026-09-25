@@ -52,6 +52,7 @@ In Web3, private keys, seed phrases, and digital directives are irrevocably lost
 - **Cloudflare Worker Test Suite (`npm run test:worker`)**: 5/5 tests passed (1-Click API, Status, Cron Trigger, Webhooks, Guardian Hold).
 - **Solana Smart Contract Test Suite (`npm run test:contract`)**: 7/7 tests passed (PDA derivation, self-custody deposits/withdrawals, SPL Token USDC custody, Pyth Network oracle valuation, ping, timelock enforcement, autonomous claim).
 - **Adversarial Red Team Stress-Test Suite (`npm run test:redteam`)**: 8/8 attack vectors neutralized (100% pass rate covering Executive IPI, beneficiary redirection, heartbeat spam, Ed25519 replay attacks, social engineering, premature PDA drain, unauthorized holds, and Unicode homoglyphs).
+- **Advanced Boundary & On-Chain Rejection Suite (`npm run test:boundary`)**: 5/5 passed (100% pass rate covering 7 domain payloads, 23h59m vs 24h01m timestamp boundaries, race-condition nonces, and real Solana Devnet on-chain error rejections: `InstructionError: ConstraintSeeds / 0x7d6`).
 
 ### Live Solana Devnet Deployment & Operational Vault PDA
 - **Program ID**: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`
@@ -98,4 +99,5 @@ Adds the `mermail-deadman-switch` skill: an autonomous digital contingency, inhe
 - **Worker Suite (`npm run test:worker`)**: 5/5 passed.
 - **Contract Suite (`npm run test:contract`)**: 7/7 passed.
 - **Red Team Suite (`npm run test:redteam`)**: 8/8 attack vectors neutralized (100%).
+- **Boundary & Live On-Chain Rejection Suite (`npm run test:boundary`)**: 5/5 passed (100%).
 ```

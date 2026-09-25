@@ -154,6 +154,9 @@ npm run test:contract
 
 # 5. Adversarial Red Team Stress-Test Suite (8 attack vectors)
 npm run test:redteam
+
+# 6. Advanced Boundary & On-Chain Rejection Suite (5 scenarios)
+npm run test:boundary
 ```
 
 ---

@@ -110,6 +110,7 @@ npm run test:live       # Live Solana Devnet RPC & Mermail Console MCP
 npm run test:worker     # Cloudflare Edge Worker serverless simulation
 npm run test:contract   # Anchor Smart Contract SPL & Pyth suite
 npm run test:redteam    # Adversarial Red Team stress-test suite
+npm run test:boundary   # Advanced Boundary & On-Chain Rejection suite
 ```
 
 ---

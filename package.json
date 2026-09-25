@@ -10,6 +10,7 @@
     "test:worker": "node test-cloudflare-worker.mjs",
     "test:contract": "node test-solana-smart-contract.mjs",
     "test:redteam": "node test-adversarial-redteam.mjs",
+    "test:boundary": "node test-boundary-and-live-exploits.mjs",
     "init:vault": "node init-live-vault-devnet.mjs",
     "build:contract": "cmd /c build-contract.bat",
     "build:contract:docker": "docker compose run --rm anchor-builder",

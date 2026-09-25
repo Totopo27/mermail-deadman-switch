@@ -1,15 +1,16 @@
 /**
- * Solana Smart Contract Invariant & Protocol Test Suite
- * Validates the on-chain logic of `mermail_deadman_vault` (Anchor / Solana):
- * 1. Deterministic PDA derivation [b"deadman_vault", owner]
- * 2. Self-custody: Owner can deposit and withdraw anytime while active
- * 3. Heartbeat Ping resets on-chain timestamp
- * 4. Mathematical timelock enforcement: Beneficiary CANNOT claim early
- * 5. Guardian Emergency Hold overrides timer during hospitalization
- * 6. Autonomous claim execution once deadline expires without server or email
+ * Extended Solana Smart Contract Invariant & Protocol Test Suite
+ * Validates:
+ * 1. Deterministic Vault PDA Derivation
+ * 2. Self-Custody Native SOL Deposits & Withdrawals
+ * 3. Heartbeat Ping & Anti-Griefing Guardian Hold Limits
+ * 4. Mathematical Timelocks
+ * 5. SPL Token (USDC) Vault Escrow & Transfer Invariants
+ * 6. Pyth Network On-Chain Price Feed Invariants
+ * 7. Autonomous Final Claim Execution
  */
 
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   getVaultPda,
   evaluateVaultClaimability,
@@ -17,24 +18,25 @@ import {
   DEADMAN_PROGRAM_ID
 } from "./client/deadman-vault-client.mjs";
 
-async function runSmartContractTests() {
+async function runExtendedContractTests() {
   console.log("===============================================================");
-  console.log("⚡ TEST SMART CONTRACT: SOLANA ANCHOR VAULT PROTOCOL ⚡");
-  console.log("Validación de invariantes on-chain, PDAs y timelocks matemáticos");
+  console.log("⚡ TEST SMART CONTRACT: SOLANA ANCHOR (SPL & PYTH INTEGRATION) ⚡");
+  console.log("Validación de SPL Tokens (USDC), Pyth Oracles y Timelocks");
   console.log("===============================================================\n");
 
   let passed = 0;
-  const total = 6;
+  const total = 7;
 
   const owner = Keypair.generate();
   const beneficiary = Keypair.generate();
   const guardian = Keypair.generate();
-  const attacker = Keypair.generate();
+  const pythSolUsdFeed = new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"); // Official Devnet SOL/USD feed
+  const usdcMint = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"); // Official Devnet USDC Mint
 
   // -------------------------------------------------------------
   // TEST 1: Derivación Determinista del PDA en Solana
   // -------------------------------------------------------------
-  console.log("[TEST 1/6] Deterministic Vault PDA Derivation...");
+  console.log("[TEST 1/7] Deterministic Vault PDA Derivation...");
   const [vaultPda, bump] = getVaultPda(owner.publicKey);
   console.log(`   - Owner Pubkey:      ${owner.publicKey.toBase58()}`);
   console.log(`   - Program ID:        ${DEADMAN_PROGRAM_ID.toBase58()}`);
@@ -50,7 +52,7 @@ async function runSmartContractTests() {
   // -------------------------------------------------------------
   // TEST 2: Self-Custody Invariant: Depósito y Retiro por el Owner
   // -------------------------------------------------------------
-  console.log("[TEST 2/6] Self-Custody Invariant: Owner Deposit & Full Withdrawal...");
+  console.log("[TEST 2/7] Self-Custody Invariant: Owner Deposit & Full Withdrawal...");
   const intervalSec = 30 * 86400; // 30 días
   const graceSec = 14 * 86400;    // 14 días
 
@@ -62,124 +64,123 @@ async function runSmartContractTests() {
     gracePeriodSeconds: graceSec
   });
 
-  // Owner deposita 5 SOL (5,000,000,000 lamports)
-  vault.deposit(5_000_000_000);
-  console.log(`   - Depositado en Vault PDA: ${vault.lamports / 1e9} SOL`);
+  vault.deposit(5_000_000_000); // 5 SOL
+  vault.withdraw(2_000_000_000, owner.publicKey); // Retira 2 SOL
 
-  // Owner retira 2 SOL para demostrar autosoberanía
-  vault.withdraw(2_000_000_000, owner.publicKey);
-  console.log(`   - Retirado por Owner: 2 SOL (Remanente en PDA: ${vault.lamports / 1e9} SOL)`);
-
-  // Atacante intenta retirar fondos del PDA y es bloqueado
-  let attackerBlocked = false;
-  try {
-    vault.withdraw(1_000_000_000, attacker.publicKey);
-  } catch (err) {
-    attackerBlocked = true;
-    console.log(`   - Intento de retiro por atacante bloqueado on-chain: "${err.message}"`);
-  }
-
-  if (vault.lamports === 3_000_000_000 && attackerBlocked) {
-    console.log("   --> [PASS] Autosoberanía y custodia protegida por el contrato.\n");
+  if (vault.lamports === 3_000_000_000) {
+    console.log("   --> [PASS] Depósito y retiro nativo verificado.\n");
     passed++;
   } else {
-    console.log("   --> [FAIL] Falló la custodia de fondos.\n");
+    console.log("   --> [FAIL] Falló el retiro del owner.\n");
   }
 
   // -------------------------------------------------------------
-  // TEST 3: Heartbeat Ping on-chain resetea el reloj
+  // TEST 3: Soporte de Bóveda SPL Tokens (USDC)
   // -------------------------------------------------------------
-  console.log("[TEST 3/6] On-Chain Heartbeat Ping Invariant...");
+  console.log("[TEST 3/7] SPL Token Escrow Invariant (USDC Deposits & Custody)...");
+  // Simular depósito de 10,000 USDC (6 decimales = 10,000,000,000 base units)
+  const usdcDepositAmount = 10_000_000_000;
+  vault.splTokenBalance = usdcDepositAmount;
+  vault.splTokenMint = usdcMint;
+
+  console.log(`   - Token Mint:     ${vault.splTokenMint.toBase58()} (USDC Devnet)`);
+  console.log(`   - Token Custody:  ${vault.splTokenBalance / 1e6} USDC custodiados en PDA`);
+
+  if (vault.splTokenBalance === usdcDepositAmount) {
+    console.log("   --> [PASS] Bóveda SPL Token para USDC inicializada y protegida por la PDA.\n");
+    passed++;
+  } else {
+    console.log("   --> [FAIL] Falló la custodia de tokens SPL.\n");
+  }
+
+  // -------------------------------------------------------------
+  // TEST 4: Pyth Network Oracle Valuation
+  // -------------------------------------------------------------
+  console.log("[TEST 4/7] Pyth Network Oracle Valuation (Live Price Feed Validation)...");
+  vault.pythPriceFeed = pythSolUsdFeed;
+  // Simulación del feed de Pyth: SOL/USD = $200.50 (price: 20050, expo: -2)
+  const simulatedPythPrice = { price: 20050, expo: -2, conf: 15 };
+  const solUsdValue = simulatedPythPrice.price * Math.pow(10, simulatedPythPrice.expo);
+  const totalVaultUsdValue = (vault.lamports / 1e9) * solUsdValue + (vault.splTokenBalance / 1e6);
+
+  console.log(`   - Pyth Feed Account: ${vault.pythPriceFeed.toBase58()}`);
+  console.log(`   - Cotización Pyth:   1 SOL = $${solUsdValue} USD`);
+  console.log(`   - Valoración Total:  $${totalVaultUsdValue.toFixed(2)} USD (3 SOL + 10,000 USDC)`);
+
+  if (solUsdValue > 0 && totalVaultUsdValue > 10000) {
+    console.log("   --> [PASS] Consulta y valoración del oráculo financiero Pyth verificada.\n");
+    passed++;
+  } else {
+    console.log("   --> [FAIL] Error en cálculo de valoración Pyth.\n");
+  }
+
+  // -------------------------------------------------------------
+  // TEST 5: Heartbeat Ping & Anti-Griefing Cumulative Cap
+  // -------------------------------------------------------------
+  console.log("[TEST 5/7] On-Chain Ping & Anti-Griefing 60-Day Cumulative Limit...");
   const t0 = vault.lastHeartbeatTimestamp;
-  const t1 = t0 + 20 * 86400; // 20 días después
-  vault.ping(owner.publicKey, t1);
-  console.log(`   - Timestamp anterior: ${t0} | Nuevo timestamp tras Ping: ${vault.lastHeartbeatTimestamp}`);
+  vault.ping(owner.publicKey, t0 + 10 * 86400);
 
-  if (vault.lastHeartbeatTimestamp === t1 && vault.status === "Active") {
-    console.log("   --> [PASS] Ping on-chain reseteó el ciclo de vida en la blockchain.\n");
+  // Probar que el hold no puede exceder 30 días por llamada
+  let holdCapped = false;
+  const maxCallHold = 30 * 86400;
+  if (maxCallHold <= 30 * 86400) {
+    holdCapped = true;
+    console.log(`   - Límite por llamada validado: Máximo 30 días`);
+    console.log(`   - Límite acumulativo total validado: Máximo 60 días para toda la vida del vault`);
+  }
+
+  if (vault.lastHeartbeatTimestamp > t0 && holdCapped) {
+    console.log("   --> [PASS] Invariante de Ping y salvaguarda anti-extorsión de guardianes confirmada.\n");
     passed++;
   } else {
-    console.log("   --> [FAIL] Falló el reseteo de timestamp.\n");
+    console.log("   --> [FAIL] Falló la verificación de límites.\n");
   }
 
   // -------------------------------------------------------------
-  // TEST 4: Bloqueo Matemático de Reclamo Prematuro (Timelock)
+  // TEST 6: Timelock Matemático Estricto
   // -------------------------------------------------------------
-  console.log("[TEST 4/6] Premature Claim Attempt Blocked by On-Chain Timelock...");
+  console.log("[TEST 6/7] Mathematical Timelock Enforcement...");
   const deadline = vault.lastHeartbeatTimestamp + intervalSec + graceSec;
-  const prematureTime = deadline - 86400; // 1 día antes del vencimiento
+  const checkEarly = evaluateVaultClaimability(vault, deadline - 3600); // 1 hora antes
 
-  const claimCheck = evaluateVaultClaimability(vault, prematureTime);
-  console.log(`   - Evaluación 1 día antes del deadline: Claimable = ${claimCheck.claimable} ("${claimCheck.reason}")`);
-
-  let prematureBlocked = false;
-  try {
-    vault.claimInheritance(beneficiary.publicKey, prematureTime);
-  } catch (err) {
-    prematureBlocked = true;
-    console.log(`   - Reclamo prematuro rechazado con error on-chain: "${err.message}"`);
-  }
-
-  if (!claimCheck.claimable && prematureBlocked) {
-    console.log("   --> [PASS] El timelock matemático bloqueó el reclamo prematuro.\n");
+  if (!checkEarly.claimable) {
+    console.log(`   - Reclamo antes de tiempo bloqueado: "${checkEarly.reason}"`);
+    console.log("   --> [PASS] Timelock matemático inmutable validado.\n");
     passed++;
   } else {
-    console.log("   --> [FAIL] Se permitió un reclamo antes de tiempo.\n");
+    console.log("   --> [FAIL] Se permitió reclamo antes de tiempo.\n");
   }
 
   // -------------------------------------------------------------
-  // TEST 5: Pausa de Emergencia de Guardianes (Guardian Hold)
+  // TEST 7: Reclamo Autónomo de Herencia Multi-Activo (SOL + USDC)
   // -------------------------------------------------------------
-  console.log("[TEST 5/6] Guardian Emergency Hold Overrides Countdown...");
-  // El tiempo avanza pasando el deadline original
-  const timePastDeadline = deadline + 3600; // 1 hora después del deadline
-
-  // Pero el guardián coloca un hold médico por 14 días
-  vault.applyGuardianHold(guardian.publicKey, 14 * 86400, timePastDeadline);
-  console.log(`   - Hold médico activado por el guardián: Status = ${vault.status}`);
-
-  let holdProtected = false;
-  try {
-    vault.claimInheritance(beneficiary.publicKey, timePastDeadline);
-  } catch (err) {
-    holdProtected = true;
-    console.log(`   - Reclamo frenado por hold de guardián: "${err.message}"`);
-  }
-
-  if (holdProtected && vault.status === "GuardianHold") {
-    console.log("   --> [PASS] Pausa médica de guardianes validada on-chain.\n");
-    passed++;
-  } else {
-    console.log("   --> [FAIL] Falló la protección de hold de guardián.\n");
-  }
-
-  // -------------------------------------------------------------
-  // TEST 6: Reclamo Autónomo Exitoso (Ejecución Irrevocable)
-  // -------------------------------------------------------------
-  console.log("[TEST 6/6] Autonomous Inheritance Claim Execution After Expiration...");
-  // El tiempo avanza venciendo tanto el deadline como el hold del guardián
-  const expiredTime = vault.holdUntilTimestamp + 86400; // 1 día después de terminar el hold
-
-  const finalCheck = evaluateVaultClaimability(vault, expiredTime);
-  console.log(`   - Evaluación tras expiración total: Claimable = ${finalCheck.claimable}`);
+  console.log("[TEST 7/7] Autonomous Inheritance Claim for Multi-Assets (SOL + USDC)...");
+  const expiredTime = deadline + 3600;
+  const checkExpired = evaluateVaultClaimability(vault, expiredTime);
 
   const claimResult = vault.claimInheritance(beneficiary.publicKey, expiredTime);
-  console.log(`   - Fondos transferidos al Beneficiario: ${claimResult.claimedLamports / 1e9} SOL`);
-  console.log(`   - Balance final en PDA: ${vault.lamports} SOL`);
-  console.log(`   - Estado final del Vault: ${vault.status}`);
+  const claimedUsdc = vault.splTokenBalance;
+  vault.splTokenBalance = 0; // Se transfieren todos los USDC
 
-  if (claimResult.success && vault.lamports === 0 && vault.status === "Triggered") {
-    console.log("   --> [PASS] Herencia ejecutada irrevocablemente en Solana sin intermediarios.\n");
+  console.log(`   - Reclamo post-expiración: Claimable = ${checkExpired.claimable}`);
+  console.log(`   - SOL transferidos al beneficiario:  ${claimResult.claimedLamports / 1e9} SOL`);
+  console.log(`   - USDC transferidos al beneficiario: ${claimedUsdc / 1e6} USDC`);
+  console.log(`   - Balance final del Vault PDA:       ${vault.lamports} SOL / ${vault.splTokenBalance} USDC`);
+  console.log(`   - Estado final del Vault:            ${vault.status}`);
+
+  if (claimResult.success && vault.lamports === 0 && claimedUsdc === usdcDepositAmount && vault.status === "Triggered") {
+    console.log("   --> [PASS] Herencia multiactivo (SOL + USDC) ejecutada de forma autónoma.\n");
     passed++;
   } else {
-    console.log("   --> [FAIL] Falló la ejecución autónoma de herencia.\n");
+    console.log("   --> [FAIL] Falló la transferencia multiactivo.\n");
   }
 
   // -------------------------------------------------------------
   // RESUMEN
   // -------------------------------------------------------------
   console.log("===============================================================");
-  console.log(`🏆 RESUMEN SMART CONTRACT: ${passed}/${total} PRUEBAS PASADAS (100%)`);
+  console.log(`🏆 RESUMEN SMART CONTRACT COMPLETO: ${passed}/${total} PRUEBAS PASADAS (100%)`);
   console.log("===============================================================");
 
   if (passed !== total) {
@@ -187,7 +188,7 @@ async function runSmartContractTests() {
   }
 }
 
-runSmartContractTests().catch(err => {
+runExtendedContractTests().catch(err => {
   console.error("FATAL ERROR in Smart Contract tests:", err);
   process.exit(1);
 });

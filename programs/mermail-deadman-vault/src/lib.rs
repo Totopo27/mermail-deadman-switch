@@ -3,6 +3,9 @@ use anchor_lang::system_program;
 
 declare_id!("E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX");
 
+pub const MAX_HOLD_SECONDS_PER_CALL: i64 = 30 * 86400; // 30 días
+pub const MAX_CUMULATIVE_HOLD_SECONDS: i64 = 60 * 86400; // 60 días de prórroga total acumulativa
+
 #[program]
 pub mod mermail_deadman_vault {
     use super::*;
@@ -31,6 +34,9 @@ pub mod mermail_deadman_vault {
         vault.grace_period_seconds = grace_period_seconds;
         vault.last_heartbeat_timestamp = clock.unix_timestamp;
         vault.hold_until_timestamp = 0;
+        vault.total_hold_seconds_consumed = 0;
+        vault.oracle_certificate_hash = [0u8; 32];
+        vault.oracle_dispute_until = 0;
         vault.status = VaultStatus::Active;
         vault.bump = ctx.bumps.vault_account;
 
@@ -44,12 +50,28 @@ pub mod mermail_deadman_vault {
     }
 
     /// Owner (or Squads Multisig) pings the vault to reset the proof-of-life heartbeat.
+    /// FIX 2: Cannot ping if vault is Triggered, and cannot arbitrarily clear an active Guardian Hold.
     pub fn ping_heartbeat(ctx: Context<PingHeartbeat>) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
-        require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
-
         let clock = Clock::get()?;
-        vault.last_heartbeat_timestamp = clock.unix_timestamp;
+        let now = clock.unix_timestamp;
+
+        require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
+        
+        // Si hay una pausa médica activa del guardián, el ping del owner no la destruye a ciegas
+        if vault.status == VaultStatus::GuardianHold && now < vault.hold_until_timestamp {
+            return Err(DeadmanError::GuardianHoldActive.into());
+        }
+
+        // FIX 5: Si el oráculo inició un trigger pero el owner está vivo dentro del período de disputa
+        if vault.status == VaultStatus::OracleDisputePending {
+            require!(now <= vault.oracle_dispute_until, DeadmanError::VaultAlreadyTriggered);
+            msg!("Owner proves life during dispute window! Reverting false oracle trigger to Active.");
+            vault.oracle_certificate_hash = [0u8; 32];
+            vault.oracle_dispute_until = 0;
+        }
+
+        vault.last_heartbeat_timestamp = now;
         vault.hold_until_timestamp = 0;
         vault.status = VaultStatus::Active;
 
@@ -58,8 +80,11 @@ pub mod mermail_deadman_vault {
     }
 
     /// Owner deposits SOL into the vault PDA.
+    /// FIX 1: Cannot deposit into an already Triggered vault.
     pub fn deposit_funds(ctx: Context<DepositFunds>, amount_lamports: u64) -> Result<()> {
+        let vault = &ctx.accounts.vault_account;
         require!(amount_lamports > 0, DeadmanError::ZeroDeposit);
+        require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
 
         system_program::transfer(
             CpiContext::new(
@@ -72,18 +97,22 @@ pub mod mermail_deadman_vault {
             amount_lamports,
         )?;
 
-        // Depositing also acts as active proof-of-life
-        let vault = &mut ctx.accounts.vault_account;
+        // Depositing also acts as active proof-of-life if not under dispute
+        let vault_mut = &mut ctx.accounts.vault_account;
         let clock = Clock::get()?;
-        vault.last_heartbeat_timestamp = clock.unix_timestamp;
+        vault_mut.last_heartbeat_timestamp = clock.unix_timestamp;
 
         msg!("Deposited {} lamports into vault PDA. Heartbeat reset.", amount_lamports);
         Ok(())
     }
 
     /// Owner can withdraw any amount of their funds anytime while alive.
+    /// FIX 1: Strictly forbids withdrawal if the vault has been Triggered.
     pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount_lamports: u64) -> Result<()> {
         let vault = &ctx.accounts.vault_account;
+        require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
+        require!(vault.status != VaultStatus::OracleDisputePending, DeadmanError::OracleDisputeActive);
+
         let vault_lamports = vault.to_account_info().lamports();
         let rent = Rent::get()?.minimum_balance(vault.to_account_info().data_len());
 
@@ -97,45 +126,73 @@ pub mod mermail_deadman_vault {
     }
 
     /// Designated guardian (or Guardian Squads multisig) places a temporary emergency hold.
+    /// FIX 4: Prevents infinite griefing by enforcing a strict cumulative cap (max 60 days total).
     pub fn apply_guardian_hold(ctx: Context<GuardianAction>, hold_seconds: i64) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
-        require!(hold_seconds > 0 && hold_seconds <= 30 * 86400, DeadmanError::InvalidHoldDuration);
+        require!(
+            hold_seconds > 0 && hold_seconds <= MAX_HOLD_SECONDS_PER_CALL,
+            DeadmanError::InvalidHoldDuration
+        );
+
+        let new_cumulative = vault.total_hold_seconds_consumed
+            .checked_add(hold_seconds)
+            .ok_or(DeadmanError::MathOverflow)?;
+
+        require!(
+            new_cumulative <= MAX_CUMULATIVE_HOLD_SECONDS,
+            DeadmanError::CumulativeHoldLimitExceeded
+        );
 
         let clock = Clock::get()?;
         vault.hold_until_timestamp = clock.unix_timestamp + hold_seconds;
+        vault.total_hold_seconds_consumed = new_cumulative;
         vault.status = VaultStatus::GuardianHold;
 
         msg!(
-            "Emergency guardian hold applied until timestamp {}",
-            vault.hold_until_timestamp
+            "Emergency guardian hold applied until timestamp {}. Cumulative consumed: {}s/{}s",
+            vault.hold_until_timestamp,
+            vault.total_hold_seconds_consumed,
+            MAX_CUMULATIVE_HOLD_SECONDS
         );
         Ok(())
     }
 
     /// Authorized legal or medical oracle certifies death/incapacitation with an on-chain attestation.
-    /// This immediately unlocks the vault without waiting for timer expiration.
+    /// FIX 3: Certificate hash is stored permanently on-chain for immutable auditability.
+    /// FIX 5: Enters OracleDisputePending (48h safety dispute window) so a living owner can ping and dispute a false trigger.
     pub fn attest_oracle_trigger(ctx: Context<OracleAttestation>, certificate_hash: [u8; 32]) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
+        require!(certificate_hash != [0u8; 32], DeadmanError::InvalidCertificateHash);
 
-        vault.status = VaultStatus::Triggered;
+        let clock = Clock::get()?;
+        vault.oracle_certificate_hash = certificate_hash;
+        vault.oracle_dispute_until = clock.unix_timestamp + 48 * 3600; // 48 horas de ventana de seguridad
+        vault.status = VaultStatus::OracleDisputePending;
 
         msg!(
-            "Oracle attestation verified! Certificate hash: {:?}. Vault irrevocably triggered.",
-            certificate_hash
+            "Oracle attestation verified! Stored certificate hash: {:?}. 48h dispute window open until: {}",
+            vault.oracle_certificate_hash,
+            vault.oracle_dispute_until
         );
         Ok(())
     }
 
     /// Beneficiary claims the inheritance once the timelock mathematically expires
-    /// OR once an authorized oracle has attested contingency.
+    /// OR once an authorized oracle dispute window has safely expired.
     pub fn claim_inheritance(ctx: Context<ClaimInheritance>) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp;
 
-        // If not already triggered by an oracle attestation, verify timelock
+        // If triggered via Oracle, must pass the 48h dispute window safely
+        if vault.status == VaultStatus::OracleDisputePending {
+            require!(now >= vault.oracle_dispute_until, DeadmanError::OracleDisputeActive);
+            vault.status = VaultStatus::Triggered;
+        }
+
+        // If not already triggered, verify standard mathematical timelock
         if vault.status != VaultStatus::Triggered {
             let deadline = vault.last_heartbeat_timestamp
                 .checked_add(vault.heartbeat_interval_seconds)
@@ -283,6 +340,9 @@ pub struct VaultAccount {
     pub grace_period_seconds: i64,
     pub last_heartbeat_timestamp: i64,
     pub hold_until_timestamp: i64,
+    pub total_hold_seconds_consumed: i64,      // FIX 4: Límite acumulativo contra griefing
+    pub oracle_certificate_hash: [u8; 32],     // FIX 3: Hash inmutable guardado on-chain
+    pub oracle_dispute_until: i64,             // FIX 5: Ventana de seguridad para revertir falsos positivos
     pub status: VaultStatus,
     pub bump: u8,
 }
@@ -291,6 +351,7 @@ pub struct VaultAccount {
 pub enum VaultStatus {
     Active,
     GuardianHold,
+    OracleDisputePending,
     Triggered,
 }
 
@@ -312,10 +373,16 @@ pub enum DeadmanError {
     VaultAlreadyTriggered,
     #[msg("Emergency hold duration must be between 1 second and 30 days")]
     InvalidHoldDuration,
+    #[msg("Guardian cumulative hold limit of 60 days exceeded (anti-griefing)")]
+    CumulativeHoldLimitExceeded,
     #[msg("Timelock has not expired yet. The owner is still considered active.")]
     TimelockNotExpired,
     #[msg("An active guardian emergency hold is currently pausing this vault")]
     GuardianHoldActive,
+    #[msg("Oracle dispute window is still active; claim must wait for dispute expiration")]
+    OracleDisputeActive,
+    #[msg("Oracle certificate hash cannot be empty or zero")]
+    InvalidCertificateHash,
     #[msg("Signer is not the authorized owner of this vault")]
     UnauthorizedOwner,
     #[msg("Signer is not the designated guardian of this vault")]

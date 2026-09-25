@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Mermail Dead Man's Switch - Autonomous Protocol Architecture",
+    "output": "mermail-deadman-architecture.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "passive-liveness",
+        "label": "Passive On-Chain Liveness (Happy Path)",
+        "focus": ["owner_wallet", "solana_rpc", "cloudflare_cron", "pda_vault"],
+        "note": "When the owner executes transactions on Solana, the timer auto-refreshes seamlessly."
+      },
+      {
+        "id": "contingency-escalation",
+        "label": "Tiered Escalation & Guardian Protection",
+        "focus": ["cloudflare_cron", "mermail_mcp", "guardian_squads", "pda_vault"],
+        "note": "Inactivity triggers tiered warnings; guardians can invoke emergency holds."
+      },
+      {
+        "id": "inheritance-settlement",
+        "label": "Autonomous Multi-Asset Inheritance Claim",
+        "focus": ["pda_vault", "pyth_oracle", "mermail_mcp", "beneficiary_wallet"],
+        "note": "Upon expiry, Shamir Shard #2 is delivered and the beneficiary claims SOL and USDC directly."
+      }
+    ]
+  },
+  "components": [
+    { "id": "owner_wallet", "type": "external", "label": "Owner / Principal", "sublabel": "Solana Wallet / Signer", "pos": [50, 280], "size": [140, 64], "tag": "Principal" },
+    { "id": "solana_rpc", "type": "cloud", "label": "Solana Devnet RPC", "sublabel": "api.devnet.solana.com", "pos": [280, 140], "size": [150, 64], "tag": "Liveness Sensor" },
+    { "id": "cloudflare_cron", "type": "backend", "label": "Cloudflare Worker", "sublabel": "Edge Cron (every 12h)", "pos": [530, 140], "size": [150, 64], "tag": "Serverless $0" },
+    { "id": "guardian_squads", "type": "external", "label": "Trusted Guardians", "sublabel": "Squads Multisig / Email", "pos": [280, 420], "size": [150, 64], "tag": "Emergency Hold" },
+    { "id": "mermail_mcp", "type": "security", "label": "Mermail Console MCP", "sublabel": "Email & PayBox Gateway", "pos": [530, 420], "size": [160, 64], "tag": "Human Notary" },
+    { "id": "pda_vault", "type": "database", "label": "On-Chain PDA Vault", "sublabel": "Anchor E4dA4... (Devnet)", "pos": [780, 280], "size": [170, 66], "tag": "Self-Custody" },
+    { "id": "pyth_oracle", "type": "cloud", "label": "Pyth Price Oracle", "sublabel": "SOL/USD Price Feed", "pos": [780, 110], "size": [150, 60], "tag": "USD Valuation" },
+    { "id": "legal_oracle", "type": "security", "label": "Legal/Medical Oracle", "sublabel": "attest_oracle_trigger", "pos": [780, 450], "size": [156, 62], "tag": "Fast-Track" },
+    { "id": "beneficiary_wallet", "type": "external", "label": "Beneficiary", "sublabel": "Heir Wallet (SOL + USDC)", "pos": [1050, 280], "size": [150, 64], "tag": "Heir" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Solana Decentralized Consensus Boundary", "wraps": ["solana_rpc", "pda_vault", "pyth_oracle", "legal_oracle"], "pad": 26 },
+    { "kind": "security-group", "label": "Off-Chain Autonomous Notary Layer", "wraps": ["cloudflare_cron", "mermail_mcp", "guardian_squads"], "pad": 20 }
+  ],
+  "connections": [
+    { "from": "owner_wallet", "to": "solana_rpc", "label": "Swaps / Transfers", "variant": "emphasis" },
+    { "from": "owner_wallet", "to": "pda_vault", "label": "SOL/USDC Escrow", "variant": "security", "labelAt": [230, 260] },
+    { "from": "solana_rpc", "to": "cloudflare_cron", "label": "getSignatures", "variant": "emphasis" },
+    { "from": "cloudflare_cron", "to": "mermail_mcp", "label": "Trigger Warnings", "fromSide": "bottom", "toSide": "top", "variant": "emphasis" },
+    { "from": "guardian_squads", "to": "mermail_mcp", "label": "Hold Notice", "variant": "dashed" },
+    { "from": "guardian_squads", "to": "pda_vault", "label": "apply_guardian_hold", "variant": "security" },
+    { "from": "pyth_oracle", "to": "pda_vault", "label": "SOL/USD Feed", "fromSide": "bottom", "toSide": "top", "variant": "emphasis" },
+    { "from": "legal_oracle", "to": "pda_vault", "label": "Oracle Hash", "fromSide": "top", "toSide": "bottom", "variant": "security" },
+    { "from": "mermail_mcp", "to": "beneficiary_wallet", "label": "Deliver Shard #2", "fromSide": "bottom", "toSide": "bottom", "via": [[610, 540], [1125, 540]], "labelAt": [868, 550], "variant": "emphasis" },
+    { "from": "pda_vault", "to": "beneficiary_wallet", "label": "claim_inheritance", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Zero-Friction Mixed Liveness",
+      "items": [
+        "Passive on-chain transactions on Solana reset the inactivity timer automatically",
+        "Manual email check-ins require Ed25519 detached signatures, preventing SMTP spoofing",
+        "Cloudflare Worker Edge Cron monitors state every 12h at $0/month cost"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "On-Chain Mathematical Custody",
+      "items": [
+        "Native Anchor Smart Contract PDA governs both native SOL and SPL Tokens (USDC)",
+        "Self-custodial: the owner can deposit and withdraw anytime while active",
+        "Pyth Network price feeds allow real-time USD asset valuation and fixed-dollar bequests"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Zero-Trust Fail-Safes & Anti-Griefing",
+      "items": [
+        "Shamir's Secret Sharing (2-of-3) ensures that an inbox breach yields only mathematical noise",
+        "Guardian holds are capped at 60 cumulative days to prevent extortion or permanent blocking",
+        "48-hour oracle dispute window allows a living owner to revert false medical attestations"
+      ]
+    }
+  ]
+}

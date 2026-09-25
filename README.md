@@ -29,6 +29,8 @@ The **Mermail Dead Man's Switch** transforms an AI agent into an autonomous, non
    - Generates empathetic, step-by-step recovery guidance for non-technical beneficiaries upon contingency execution.
    - Analyzes natural language medical/travel distress reports to suggest emergency guardian verification holds.
 
+> 📊 **Interactive Architecture Diagram:** Explore the full interactive system map, multi-view execution corridors, and animated state flow in [`archify-deadman-architecture.html`](./archify-deadman-architecture.html) (rendered via Archify).
+
 ---
 
 ## Multi-Tiered Deterministic Lifecycle

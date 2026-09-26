@@ -9,6 +9,8 @@
     "test:live": "node test-real-resources.mjs",
     "test:worker": "node test-cloudflare-worker.mjs",
     "test:contract": "node test-solana-smart-contract.mjs",
+    "test:invariants": "node test-solana-dev-invariants.mjs",
+    "test:chaos": "node test-solana-dev-phase3-phase4.mjs",
     "test:redteam": "node test-adversarial-redteam.mjs",
     "test:boundary": "node test-boundary-and-live-exploits.mjs",
     "init:vault": "node init-live-vault-devnet.mjs",

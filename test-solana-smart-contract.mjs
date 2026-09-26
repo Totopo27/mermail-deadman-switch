@@ -153,27 +153,41 @@ async function runExtendedContractTests() {
   }
 
   // -------------------------------------------------------------
-  // TEST 7: Reclamo Autónomo de Herencia Multi-Activo (SOL + USDC)
+  // TEST 7: Reclamo Autónomo de Herencia Multi-Activo (SOL + USDC) con Retención de Rent Exemption
   // -------------------------------------------------------------
   console.log("[TEST 7/7] Autonomous Inheritance Claim for Multi-Assets (SOL + USDC)...");
   const expiredTime = deadline + 3600;
   const checkExpired = evaluateVaultClaimability(vault, expiredTime);
 
-  const claimResult = vault.claimInheritance(beneficiary.publicKey, expiredTime);
-  const claimedUsdc = vault.splTokenBalance;
-  vault.splTokenBalance = 0; // Se transfieren todos los USDC
-
+  // 1. Beneficiario reclama SOL (se retiene renta mínima para que la PDA sobreviva a la transferencia de tokens)
+  const claimSolResult = vault.claimInheritance(beneficiary.publicKey, expiredTime);
   console.log(`   - Reclamo post-expiración: Claimable = ${checkExpired.claimable}`);
-  console.log(`   - SOL transferidos al beneficiario:  ${claimResult.claimedLamports / 1e9} SOL`);
-  console.log(`   - USDC transferidos al beneficiario: ${claimedUsdc / 1e6} USDC`);
-  console.log(`   - Balance final del Vault PDA:       ${vault.lamports} SOL / ${vault.splTokenBalance} USDC`);
-  console.log(`   - Estado final del Vault:            ${vault.status}`);
+  console.log(`   - SOL transferidos al beneficiario:  ${claimSolResult.claimedLamports / 1e9} SOL`);
+  console.log(`   - Renta mínima retenida en PDA:       ${claimSolResult.rentRetained / 1e9} SOL`);
 
-  if (claimResult.success && vault.lamports === 0 && claimedUsdc === usdcDepositAmount && vault.status === "Triggered") {
-    console.log("   --> [PASS] Herencia multiactivo (SOL + USDC) ejecutada de forma autónoma.\n");
+  // 2. Beneficiario reclama Tokens SPL (USDC)
+  const claimSplResult = vault.claimSplInheritance(beneficiary.publicKey, usdcMint, expiredTime);
+  console.log(`   - USDC transferidos al beneficiario: ${claimSplResult.claimedTokens / 1e6} USDC`);
+
+  // 3. Cierre final del Vault (close_vault): Se devuelve la renta restante al beneficiario
+  const closeResult = vault.closeVault(beneficiary.publicKey);
+  console.log(`   - Vault PDA cerrada formalmente. Reembolso de renta: ${closeResult.refundedRent / 1e9} SOL`);
+  console.log(`   - Balance final del Vault PDA:       ${vault.lamports} SOL / ${vault.splTokenBalance} USDC`);
+  console.log(`   - Estado final del Vault:            ${vault.status} (Cerrado: ${vault.isClosed})`);
+
+  const totalSolReceived = (claimSolResult.claimedLamports + closeResult.refundedRent) / 1e9;
+  if (
+    claimSolResult.success &&
+    claimSplResult.success &&
+    closeResult.success &&
+    totalSolReceived === 3 &&
+    claimSplResult.claimedTokens === usdcDepositAmount &&
+    vault.isClosed
+  ) {
+    console.log("   --> [PASS] Herencia multiactivo (SOL + USDC) y cierre de PDA con reembolso de renta verificado.\n");
     passed++;
   } else {
-    console.log("   --> [FAIL] Falló la transferencia multiactivo.\n");
+    console.log("   --> [FAIL] Falló la transferencia multiactivo o el cierre del vault.\n");
   }
 
   // -------------------------------------------------------------

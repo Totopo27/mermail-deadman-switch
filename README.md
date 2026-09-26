@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Superteam Earn](https://img.shields.io/badge/Superteam_Earn-Bounty-purple.svg)](https://earn.superteam.fun/)
 [![Solana Devnet](https://img.shields.io/badge/Solana_Devnet-Verified_Program-green.svg)](https://explorer.solana.com/address/E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX?cluster=devnet)
-[![Tests: 11/11 Passing](https://img.shields.io/badge/Unit_Tests-11%2F11_Passing-brightgreen.svg)]()
+[![Tests: 60/60 Passing](https://img.shields.io/badge/All_Suites-60%2F60_Passing-brightgreen.svg)]()
 [![Red Team: 8/8 Neutralized](https://img.shields.io/badge/Red_Team-8%2F8_Neutralized-brightgreen.svg)]()
 
 > **Autonomous Digital Contingency, Multi-Asset Inheritance, and Dead Man's Switch Protocol for Mermail and Solana.**  
@@ -21,7 +21,7 @@ The **Mermail Dead Man's Switch** transforms an AI agent into an autonomous, non
    - **Passive Mixed Liveness:** Monitors on-chain Solana activity (`getSignaturesForAddress`). If the principal executes swaps on Jupiter or transfers on-chain, the timer resets automatically without requiring manual emails.
    - **Ed25519 Cryptographic Proof of Life:** Active email heartbeats require detached digital signatures matching the owner's Solana keypair, neutralizing spoofed email relays.
    - **Threshold Custody (Shamir's Secret Sharing 2-of-3):** Secret keys are fragmented across Galois Field $\text{GF}(2^8)$. The agent custodially locks only Shard #2. Breaching the server or inbox yields only useless mathematical noise.
-   - **Native Solana Anchor Smart Contract (`mermail_deadman_vault`):** A PDA-governed vault (`[b"deadman_vault", owner]`, Program ID: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`) enforcing on-chain timelocks, self-custodial withdrawals, SPL Token (USDC) multi-asset custody, Pyth Network price feeds, Squads Multisig compatibility, and legal oracle bypasses (`attest_oracle_trigger`).
+   - **Native Solana Anchor Smart Contract (`mermail_deadman_vault`):** A PDA-governed vault (`[b"deadman_vault", owner]`, Program ID: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`) enforcing on-chain timelocks, self-custodial withdrawals, rent-exempt PDA survival, SPL Token (USDC) multi-asset custody with `transfer_checked`, hardened Pyth Network price feeds (sign-flip protection & 300 bps confidence ratio gate), living owner config rotation (`update_vault_config`), formal vault closure (`close_vault`), Squads Multisig compatibility, legal oracle bypasses (`attest_oracle_trigger`), and full Transaction v1 (SIMD-0385) 4096-byte conformance.
    - **Serverless Cloudflare Worker:** $0/month edge execution with Cron Triggers every 12 hours, 1-Click Vault Setup API, and real-time Mermail webhook receivers.
 
 2. **AI Notary Advisor (Human-Facing Layer):**
@@ -71,6 +71,10 @@ The **Mermail Dead Man's Switch** transforms an AI agent into an autonomous, non
 | **Destination Wallet Mutation** | Attacker tries to alter settlement wallet address via email instructions. | **Config Immutability & PDA Constraint:** Beneficiary addresses are hardcoded in verified deployment config and Anchor `has_one = beneficiary` constraints. |
 | **Guardian Griefing / Denial of Service** | Corrupt guardian attempts infinite holds to prevent heirs from ever receiving inheritance. | **Cumulative Hold Limit:** Contract enforces `MAX_CUMULATIVE_HOLD_SECONDS = 60 * 86400` total lifetime cap. |
 | **Premature Oracle Trigger** | Malicious or erroneous oracle attempts to trigger vault while owner is alive. | **48h Dispute Window:** Vault enters `OracleDisputePending`; living owner can ping and revert false triggers before claim. |
+| **Rent-Draining & PDA Purge** | Premature claim drains lamports to 0, causing Solana runtime to purge PDA before SPL tokens can be claimed. | **Rent Exemption Retention & `close_vault`:** Contract retains rent-exempt minimum balance during `claim_inheritance`; `close_vault` refunds rent only after all assets are claimed. |
+| **Oracle Sign-Flip & Confidence Spikes** | Failing oracle returns negative price or wide uncertainty band (>3%) during flash crash. | **Sign-Flip & 300 bps Confidence Gate:** Rejects `price <= 0` and enforces `(conf * 10,000) / price <= 300` threshold on Pyth feeds. |
+| **SPL Mint Mismatch & Unchecked CPI** | Adversary injects counterfeit token account or wrong mint during transfer. | **Mint Binding & `transfer_checked`:** Explicit `mint` account verified with `vault_token_account.mint == mint.key()` constraint and transferred via `token::transfer_checked`. |
+| **Transaction v1 Duplicate Accounts** | Complex multi-instruction batching rejected under SIMD-0385 rules. | **Zero-Duplicate Account Layout:** All account sets are deduplicated, guaranteeing full compatibility with 4096-byte v1 envelopes. |
 
 ---
 
@@ -117,6 +121,8 @@ mermail-deadman-switch/
 ├── test-real-resources.mjs               # Live Solana Devnet RPC & Mermail MCP integration tests
 ├── test-cloudflare-worker.mjs            # Serverless Edge simulation tests
 ├── test-solana-smart-contract.mjs        # Anchor Smart Contract invariant & token tests
+├── test-solana-dev-invariants.mjs        # Solana-Dev LiteSVM/State Invariant suite (Clock, Holds, Close)
+├── test-solana-dev-phase3-phase4.mjs     # Solana-Dev Surfpool Chaos & SIMD-0385 Transaction v1 suite
 ├── test-adversarial-redteam.mjs          # Adversarial Red Team stress-test suite
 ├── init-live-vault-devnet.mjs            # Live Devnet Vault initialization & funding script
 ├── SUBMISSION_PACK.md                    # Official Superteam Earn submission details
@@ -159,6 +165,12 @@ npm run test:redteam
 
 # 6. Advanced Boundary & On-Chain Rejection Suite (5 scenarios)
 npm run test:boundary
+
+# 7. Solana-Dev Invariant & State Machine Suite (6 scenarios)
+npm run test:invariants
+
+# 8. Solana-Dev Chaos & SIMD-0385 Transaction v1 Suite (6 scenarios)
+npm run test:chaos
 ```
 
 ---

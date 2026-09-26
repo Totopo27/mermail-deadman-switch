@@ -30,3 +30,14 @@ The Dead Man's Switch manages critical contingencies involving sensitive directi
 1. **Irrevocable Single-Shot Execution:** Once the switch transitions to `TRIGGERED`, it permanently locks. It cannot return to `ARMED` nor execute duplicate payouts.
 2. **Comprehensive Audit Trail:** Every state evaluation produces auditable timestamps, message IDs, and on-chain explorer links.
 3. **Bounded Delegation Limits:** Rescue transfers are constrained to pre-set delegation thresholds configured in the PayBox console.
+
+---
+
+## 3. Solana Anchor Smart Contract Security Invariants (`mermail_deadman_vault`)
+
+1. **Rent-Exemption Retention & PDA Preservation:** Lamport withdrawals and `claim_inheritance` retain the minimum rent-exempt balance (`Rent::get()?.minimum_balance(data_len)`), ensuring the PDA survives to execute subsequent SPL token transfers. Permanent destruction occurs only via `close_vault` using Anchor's `close = beneficiary` macro.
+2. **SPL Token Safety (`transfer_checked` & Mint Constraint):** Token account owners and mint identities are strictly bound on-chain (`constraint = vault_token_account.mint == mint.key()`). Transfers execute via `token::transfer_checked` verifying mint decimals at runtime.
+3. **Pyth Oracle Confidence & Sign-Flip Shield:** Oracle feeds validate `price > 0` (preventing negative-value sign-flip attacks during casting) and enforce an uncertainty ratio gate `(conf * 10_000) / price <= 300` ($\le 3\%$). Feeds older than 120 seconds are rejected (`StalePriceFeed`).
+4. **Anti-Griefing Guardian Hold Limits:** Guardians can place emergency holds (up to 30 days per invocation) to prevent premature liquidation during medical crises, but cannot extort beneficiaries due to a lifetime cumulative limit of 60 days (`MAX_CUMULATIVE_HOLD_SECONDS`).
+5. **Oracle 48-Hour Dispute Window:** Atestations of demise enter a 48-hour dispute status (`OracleDisputePending`). A living owner can execute `ping_heartbeat` to rebut false claims and revert the vault to `Active`.
+6. **Transaction v1 (SIMD-0385) Conformance:** Account structures maintain zero duplicate addresses and support 4096-byte envelopes without redundant `ComputeBudget` instructions.

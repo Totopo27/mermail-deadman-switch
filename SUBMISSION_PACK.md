@@ -53,6 +53,8 @@ In Web3, private keys, seed phrases, and digital directives are irrevocably lost
 - **Solana Smart Contract Test Suite (`npm run test:contract`)**: 7/7 tests passed (PDA derivation, self-custody deposits/withdrawals, SPL Token USDC custody, Pyth Network oracle valuation, ping, timelock enforcement, autonomous claim).
 - **Adversarial Red Team Stress-Test Suite (`npm run test:redteam`)**: 8/8 attack vectors neutralized (100% pass rate covering Executive IPI, beneficiary redirection, heartbeat spam, Ed25519 replay attacks, social engineering, premature PDA drain, unauthorized holds, and Unicode homoglyphs).
 - **Advanced Boundary & On-Chain Rejection Suite (`npm run test:boundary`)**: 5/5 passed (100% pass rate covering 7 domain payloads, 23h59m vs 24h01m timestamp boundaries, race-condition nonces, and real Solana Devnet on-chain error rejections: `InstructionError: ConstraintSeeds / 0x7d6`).
+- **Solana-Dev Invariant Suite (`npm run test:invariants`)**: 6/6 passed (100% pass rate covering Sysvar Clock time-warp, guardian anti-griefing 60-day limit, SPL Token `transfer_checked` with mint verification, Pyth sign-flip/300 bps confidence shields, 48h dispute proof-of-life rebuttal, and `close_vault` rent refund).
+- **Solana-Dev Chaos & Transaction v1 Suite (`npm run test:chaos`)**: 6/6 passed (100% pass rate covering Guardian vs Timelock race conditions, oracle flash crash, concurrent replay avalanche, and SIMD-0385 4096-byte v1 envelope & zero-duplicate account validation).
 
 ### Live Solana Devnet Deployment & Operational Vault PDA
 - **Program ID**: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`
@@ -100,4 +102,7 @@ Adds the `mermail-deadman-switch` skill: an autonomous digital contingency, inhe
 - **Contract Suite (`npm run test:contract`)**: 7/7 passed.
 - **Red Team Suite (`npm run test:redteam`)**: 8/8 attack vectors neutralized (100%).
 - **Boundary & Live On-Chain Rejection Suite (`npm run test:boundary`)**: 5/5 passed (100%).
+- **Solana-Dev Invariant Suite (`npm run test:invariants`)**: 6/6 passed (100%).
+- **Solana-Dev Chaos & Transaction v1 Suite (`npm run test:chaos`)**: 6/6 passed (100%).
+- **Total Testing Coverage**: 60/60 tests passing across all suites (100%).
 ```

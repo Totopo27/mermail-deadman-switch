@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 use pyth_sdk_solana::load_price_feed_from_account_info;
 
 declare_id!("E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX");
@@ -8,6 +8,7 @@ declare_id!("E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX");
 pub const MAX_HOLD_SECONDS_PER_CALL: i64 = 30 * 86400; // 30 días
 pub const MAX_CUMULATIVE_HOLD_SECONDS: i64 = 60 * 86400; // 60 días acumulativos totales
 pub const MAXIMUM_PRICE_AGE_SECONDS: u64 = 120; // Máxima antigüedad permitida del oráculo Pyth (2 min)
+pub const MAXIMUM_PRICE_CONFIDENCE_BPS: u128 = 300; // Máxima dispersión de confianza (3% = 300 bps)
 
 #[program]
 pub mod mermail_deadman_vault {
@@ -51,6 +52,47 @@ pub mod mermail_deadman_vault {
             vault.beneficiary,
             vault.pyth_price_feed
         );
+        Ok(())
+    }
+
+    /// Living owner updates vault parameters (guardian, oracle attestation, price feed, or intervals).
+    pub fn update_vault_config(
+        ctx: Context<UpdateVaultConfig>,
+        new_heartbeat_interval_seconds: Option<i64>,
+        new_grace_period_seconds: Option<i64>,
+        new_guardian: Option<Option<Pubkey>>,
+        new_oracle_attestation: Option<Option<Pubkey>>,
+        new_pyth_price_feed: Option<Option<Pubkey>>,
+    ) -> Result<()> {
+        let vault = &mut ctx.accounts.vault_account;
+        require!(vault.status == VaultStatus::Active, DeadmanError::VaultNotActive);
+
+        if let Some(interval) = new_heartbeat_interval_seconds {
+            require!(interval > 0, DeadmanError::InvalidInterval);
+            vault.heartbeat_interval_seconds = interval;
+        }
+
+        if let Some(grace) = new_grace_period_seconds {
+            require!(grace > 0, DeadmanError::InvalidGracePeriod);
+            vault.grace_period_seconds = grace;
+        }
+
+        if let Some(guardian) = new_guardian {
+            vault.guardian = guardian;
+        }
+
+        if let Some(oracle) = new_oracle_attestation {
+            vault.oracle_attestation = oracle;
+        }
+
+        if let Some(feed) = new_pyth_price_feed {
+            vault.pyth_price_feed = feed;
+        }
+
+        let clock = Clock::get()?;
+        vault.last_heartbeat_timestamp = clock.unix_timestamp;
+
+        msg!("Vault configuration updated by owner {}. Heartbeat reset.", vault.owner);
         Ok(())
     }
 
@@ -108,7 +150,7 @@ pub mod mermail_deadman_vault {
         Ok(())
     }
 
-    /// Owner can withdraw any amount of their funds anytime while alive.
+    /// Owner can withdraw any amount of their funds anytime while alive, preserving rent exemption.
     pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount_lamports: u64) -> Result<()> {
         let vault = &ctx.accounts.vault_account;
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
@@ -126,19 +168,24 @@ pub mod mermail_deadman_vault {
         Ok(())
     }
 
-    /// SPL TOKEN SUPPORT: Owner deposits SPL Tokens (e.g. USDC/USDT) into the vault's token account.
+    /// SPL TOKEN SUPPORT: Owner deposits SPL Tokens into the vault's token account using TransferChecked.
     pub fn deposit_spl_tokens(ctx: Context<DepositSplTokens>, amount: u64) -> Result<()> {
         let vault = &ctx.accounts.vault_account;
         require!(amount > 0, DeadmanError::ZeroDeposit);
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
 
-        let cpi_accounts = Transfer {
+        let cpi_accounts = TransferChecked {
             from: ctx.accounts.owner_token_account.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
             to: ctx.accounts.vault_token_account.to_account_info(),
             authority: ctx.accounts.owner.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        token::transfer(CpiContext::new(cpi_program, cpi_accounts), amount)?;
+        token::transfer_checked(
+            CpiContext::new(cpi_program, cpi_accounts),
+            amount,
+            ctx.accounts.mint.decimals,
+        )?;
 
         // Reset heartbeat on token deposit
         let vault_mut = &mut ctx.accounts.vault_account;
@@ -149,7 +196,7 @@ pub mod mermail_deadman_vault {
         Ok(())
     }
 
-    /// SPL TOKEN SUPPORT: Owner withdraws SPL Tokens while active.
+    /// SPL TOKEN SUPPORT: Owner withdraws SPL Tokens while active using TransferChecked.
     pub fn withdraw_spl_tokens(ctx: Context<WithdrawSplTokens>, amount: u64) -> Result<()> {
         let vault = &ctx.accounts.vault_account;
         require!(vault.status != VaultStatus::Triggered, DeadmanError::VaultAlreadyTriggered);
@@ -163,13 +210,18 @@ pub mod mermail_deadman_vault {
         ];
         let signer_seeds = &[&seeds[..]];
 
-        let cpi_accounts = Transfer {
+        let cpi_accounts = TransferChecked {
             from: ctx.accounts.vault_token_account.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
             to: ctx.accounts.owner_token_account.to_account_info(),
             authority: ctx.accounts.vault_account.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        token::transfer(CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds), amount)?;
+        token::transfer_checked(
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds),
+            amount,
+            ctx.accounts.mint.decimals,
+        )?;
 
         msg!("Owner withdrew {} SPL tokens from vault", amount);
         Ok(())
@@ -225,7 +277,7 @@ pub mod mermail_deadman_vault {
         Ok(())
     }
 
-    /// PYTH ORACLE INTEGRATION: Queries on-chain Pyth price feed and returns valuation in USD.
+    /// PYTH ORACLE INTEGRATION: Queries on-chain Pyth price feed, validates owner, positive price & confidence band.
     pub fn inspect_pyth_valuation(ctx: Context<InspectPythValuation>) -> Result<()> {
         let vault = &ctx.accounts.vault_account;
         let pyth_account_info = &ctx.accounts.pyth_price_account;
@@ -243,16 +295,31 @@ pub mod mermail_deadman_vault {
             .get_price_no_older_than(clock.unix_timestamp, MAXIMUM_PRICE_AGE_SECONDS)
             .ok_or(DeadmanError::StalePriceFeed)?;
 
+        // Ensure price is positive (prevent sign-flip attacks when casting)
+        require!(current_price.price > 0, DeadmanError::InvalidPrice);
+
+        // Enforce confidence interval ratio (conf / price <= 3%)
+        let conf_bps = (current_price.conf as u128)
+            .checked_mul(10_000)
+            .ok_or(DeadmanError::MathOverflow)?
+            .checked_div(current_price.price as u128)
+            .ok_or(DeadmanError::MathOverflow)?;
+        require!(
+            conf_bps <= MAXIMUM_PRICE_CONFIDENCE_BPS,
+            DeadmanError::PriceConfidenceTooWide
+        );
+
         msg!(
-            "Pyth on-chain valuation: SOL/USD price = {}. Exponent = {}. Confidence = {}",
+            "Pyth on-chain valuation: SOL/USD price = {}. Exponent = {}. Confidence = {} ({} bps)",
             current_price.price,
             current_price.expo,
-            current_price.conf
+            current_price.conf,
+            conf_bps
         );
         Ok(())
     }
 
-    /// Beneficiary claims the SOL inheritance once timelock/dispute expires.
+    /// Beneficiary claims the SOL inheritance once timelock/dispute expires, retaining rent exemption for PDA survival.
     pub fn claim_inheritance(ctx: Context<ClaimInheritance>) -> Result<()> {
         let vault = &mut ctx.accounts.vault_account;
         let clock = Clock::get()?;
@@ -278,22 +345,51 @@ pub mod mermail_deadman_vault {
 
         let vault_info = vault.to_account_info();
         let beneficiary_info = ctx.accounts.beneficiary.to_account_info();
-        let balance = vault_info.lamports();
+        let current_balance = vault_info.lamports();
+        let rent_minimum = Rent::get()?.minimum_balance(vault_info.data_len());
 
-        **vault_info.try_borrow_mut_lamports()? = 0;
+        let claimable_lamports = current_balance.saturating_sub(rent_minimum);
+        require!(claimable_lamports > 0, DeadmanError::InsufficientFunds);
+
+        **vault_info.try_borrow_mut_lamports()? -= claimable_lamports;
         **beneficiary_info.try_borrow_mut_lamports()? = beneficiary_info
             .lamports()
-            .checked_add(balance)
+            .checked_add(claimable_lamports)
             .ok_or(DeadmanError::MathOverflow)?;
 
-        msg!("Inheritance SOL claimed! Transferred {} lamports to beneficiary {}", balance, vault.beneficiary);
+        msg!(
+            "Inheritance SOL claimed! Transferred {} lamports to beneficiary {} (retaining {} rent-exempt lamports)",
+            claimable_lamports,
+            vault.beneficiary,
+            rent_minimum
+        );
         Ok(())
     }
 
-    /// SPL TOKEN SUPPORT: Beneficiary claims all custodied SPL Tokens (e.g. USDC).
+    /// SPL TOKEN SUPPORT: Beneficiary claims all custodied SPL Tokens using TransferChecked.
+    /// Can trigger the transition autonomously if timelock has expired.
     pub fn claim_spl_inheritance(ctx: Context<ClaimSplInheritance>) -> Result<()> {
-        let vault = &ctx.accounts.vault_account;
-        require!(vault.status == VaultStatus::Triggered, DeadmanError::VaultNotTriggered);
+        let vault = &mut ctx.accounts.vault_account;
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        if vault.status == VaultStatus::OracleDisputePending {
+            require!(now >= vault.oracle_dispute_until, DeadmanError::OracleDisputeActive);
+            vault.status = VaultStatus::Triggered;
+        }
+
+        if vault.status != VaultStatus::Triggered {
+            let deadline = vault.last_heartbeat_timestamp
+                .checked_add(vault.heartbeat_interval_seconds)
+                .ok_or(DeadmanError::MathOverflow)?
+                .checked_add(vault.grace_period_seconds)
+                .ok_or(DeadmanError::MathOverflow)?;
+
+            require!(now >= deadline, DeadmanError::TimelockNotExpired);
+            require!(now >= vault.hold_until_timestamp, DeadmanError::GuardianHoldActive);
+
+            vault.status = VaultStatus::Triggered;
+        }
 
         let token_balance = ctx.accounts.vault_token_account.amount;
         require!(token_balance > 0, DeadmanError::NoTokensToClaim);
@@ -306,15 +402,29 @@ pub mod mermail_deadman_vault {
         ];
         let signer_seeds = &[&seeds[..]];
 
-        let cpi_accounts = Transfer {
+        let cpi_accounts = TransferChecked {
             from: ctx.accounts.vault_token_account.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
             to: ctx.accounts.beneficiary_token_account.to_account_info(),
             authority: ctx.accounts.vault_account.to_account_info(),
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        token::transfer(CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds), token_balance)?;
+        token::transfer_checked(
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds),
+            token_balance,
+            ctx.accounts.mint.decimals,
+        )?;
 
         msg!("Transferred {} SPL tokens to beneficiary token account", token_balance);
+        Ok(())
+    }
+
+    /// Closes the vault account after final claim and returns remaining rent lamports to beneficiary.
+    pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
+        let vault = &ctx.accounts.vault_account;
+        require!(vault.status == VaultStatus::Triggered, DeadmanError::VaultNotTriggered);
+
+        msg!("Vault closed permanently. Rent lamports refunded to beneficiary.");
         Ok(())
     }
 }
@@ -338,6 +448,19 @@ pub struct InitializeVault<'info> {
     pub owner: Signer<'info>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateVaultConfig<'info> {
+    #[account(
+        mut,
+        seeds = [b"deadman_vault", owner.key().as_ref()],
+        bump = vault_account.bump,
+        has_one = owner @ DeadmanError::UnauthorizedOwner
+    )]
+    pub vault_account: Account<'info, VaultAccount>,
+
+    pub owner: Signer<'info>,
 }
 
 #[derive(Accounts)]
@@ -395,15 +518,19 @@ pub struct DepositSplTokens<'info> {
 
     #[account(
         mut,
-        constraint = vault_token_account.owner == vault_account.key() @ DeadmanError::InvalidTokenAccountOwner
+        constraint = vault_token_account.owner == vault_account.key() @ DeadmanError::InvalidTokenAccountOwner,
+        constraint = vault_token_account.mint == mint.key() @ DeadmanError::MismatchedMint
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
-        constraint = owner_token_account.owner == owner.key() @ DeadmanError::UnauthorizedOwner
+        constraint = owner_token_account.owner == owner.key() @ DeadmanError::UnauthorizedOwner,
+        constraint = owner_token_account.mint == mint.key() @ DeadmanError::MismatchedMint
     )]
     pub owner_token_account: Account<'info, TokenAccount>,
+
+    pub mint: Account<'info, Mint>,
 
     pub owner: Signer<'info>,
     pub token_program: Program<'info, Token>,
@@ -421,15 +548,19 @@ pub struct WithdrawSplTokens<'info> {
 
     #[account(
         mut,
-        constraint = vault_token_account.owner == vault_account.key() @ DeadmanError::InvalidTokenAccountOwner
+        constraint = vault_token_account.owner == vault_account.key() @ DeadmanError::InvalidTokenAccountOwner,
+        constraint = vault_token_account.mint == mint.key() @ DeadmanError::MismatchedMint
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
-        constraint = owner_token_account.owner == owner.key() @ DeadmanError::UnauthorizedOwner
+        constraint = owner_token_account.owner == owner.key() @ DeadmanError::UnauthorizedOwner,
+        constraint = owner_token_account.mint == mint.key() @ DeadmanError::MismatchedMint
     )]
     pub owner_token_account: Account<'info, TokenAccount>,
+
+    pub mint: Account<'info, Mint>,
 
     pub owner: Signer<'info>,
     pub token_program: Program<'info, Token>,
@@ -490,6 +621,7 @@ pub struct ClaimInheritance<'info> {
 #[derive(Accounts)]
 pub struct ClaimSplInheritance<'info> {
     #[account(
+        mut,
         seeds = [b"deadman_vault", vault_account.owner.as_ref()],
         bump = vault_account.bump,
         has_one = beneficiary @ DeadmanError::UnauthorizedBeneficiary
@@ -498,19 +630,42 @@ pub struct ClaimSplInheritance<'info> {
 
     #[account(
         mut,
-        constraint = vault_token_account.owner == vault_account.key() @ DeadmanError::InvalidTokenAccountOwner
+        constraint = vault_token_account.owner == vault_account.key() @ DeadmanError::InvalidTokenAccountOwner,
+        constraint = vault_token_account.mint == mint.key() @ DeadmanError::MismatchedMint
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
-        constraint = beneficiary_token_account.owner == beneficiary.key() @ DeadmanError::UnauthorizedBeneficiary
+        constraint = beneficiary_token_account.owner == beneficiary.key() @ DeadmanError::UnauthorizedBeneficiary,
+        constraint = beneficiary_token_account.mint == mint.key() @ DeadmanError::MismatchedMint
     )]
     pub beneficiary_token_account: Account<'info, TokenAccount>,
+
+    pub mint: Account<'info, Mint>,
 
     pub beneficiary: Signer<'info>,
     pub token_program: Program<'info, Token>,
 }
+
+#[derive(Accounts)]
+pub struct CloseVault<'info> {
+    #[account(
+        mut,
+        seeds = [b"deadman_vault", vault_account.owner.as_ref()],
+        bump = vault_account.bump,
+        has_one = beneficiary @ DeadmanError::UnauthorizedBeneficiary,
+        close = beneficiary
+    )]
+    pub vault_account: Account<'info, VaultAccount>,
+
+    #[account(mut)]
+    pub beneficiary: Signer<'info>,
+}
+
+// ---------------------------------------------------------------------------
+// DATA STRUCTS & STATE ENUMS
+// ---------------------------------------------------------------------------
 
 #[account]
 #[derive(InitSpace)]
@@ -573,8 +728,16 @@ pub enum DeadmanError {
     PythFeedParseError,
     #[msg("Pyth price feed is stale (older than 120 seconds)")]
     StalePriceFeed,
+    #[msg("Price reported by oracle is invalid or non-positive")]
+    InvalidPrice,
+    #[msg("Oracle price confidence interval is too wide (high volatility)")]
+    PriceConfidenceTooWide,
+    #[msg("Token account mint does not match the provided mint")]
+    MismatchedMint,
     #[msg("Vault is not in Triggered state")]
     VaultNotTriggered,
+    #[msg("Vault is not in active state for configuration update")]
+    VaultNotActive,
     #[msg("No tokens available in vault token account to claim")]
     NoTokensToClaim,
     #[msg("Invalid token account owner (must be owned by vault PDA)")]

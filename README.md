@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Superteam Earn](https://img.shields.io/badge/Superteam_Earn-Bounty-purple.svg)](https://earn.superteam.fun/)
 [![Solana Devnet](https://img.shields.io/badge/Solana_Devnet-Verified_Program-green.svg)](https://explorer.solana.com/address/E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX?cluster=devnet)
-[![Tests: 60/60 Passing](https://img.shields.io/badge/All_Suites-60%2F60_Passing-brightgreen.svg)]()
+[![Tests: 66/66 Passing](https://img.shields.io/badge/All_Suites-66%2F66_Passing-brightgreen.svg)]()
 [![Red Team: 8/8 Neutralized](https://img.shields.io/badge/Red_Team-8%2F8_Neutralized-brightgreen.svg)]()
 
 > **Autonomous Digital Contingency, Multi-Asset Inheritance, and Dead Man's Switch Protocol for Mermail and Solana.**  
@@ -112,6 +112,7 @@ mermail-deadman-switch/
 ├── client/
 │   └── deadman-vault-client.mjs          # Client SDK for Solana PDA interaction
 ├── deadman-engine.mjs                    # Core dual-core state machine & mixed liveness
+├── telegram-notifier.mjs                 # Hardened Telegram multi-channel alert dispatcher
 ├── shamir.mjs                            # Galois Field GF(2^8) Shamir Secret Sharing (2-of-3)
 ├── worker.mjs                            # Serverless Cloudflare Edge Worker with Cron Triggers
 ├── wrangler.jsonc                        # Cloudflare configuration
@@ -123,6 +124,7 @@ mermail-deadman-switch/
 ├── test-solana-smart-contract.mjs        # Anchor Smart Contract invariant & token tests
 ├── test-solana-dev-invariants.mjs        # Solana-Dev LiteSVM/State Invariant suite (Clock, Holds, Close)
 ├── test-solana-dev-phase3-phase4.mjs     # Solana-Dev Surfpool Chaos & SIMD-0385 Transaction v1 suite
+├── test-telegram-notifier.mjs            # Telegram security, HTML entity escaping & timeout tests
 ├── test-adversarial-redteam.mjs          # Adversarial Red Team stress-test suite
 ├── init-live-vault-devnet.mjs            # Live Devnet Vault initialization & funding script
 ├── SUBMISSION_PACK.md                    # Official Superteam Earn submission details
@@ -171,6 +173,9 @@ npm run test:invariants
 
 # 8. Solana-Dev Chaos & SIMD-0385 Transaction v1 Suite (6 scenarios)
 npm run test:chaos
+
+# 9. Telegram Notifier Hardening & Resilience Suite (6 scenarios)
+npm run test:telegram
 ```
 
 ---

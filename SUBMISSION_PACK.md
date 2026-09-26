@@ -55,6 +55,7 @@ In Web3, private keys, seed phrases, and digital directives are irrevocably lost
 - **Advanced Boundary & On-Chain Rejection Suite (`npm run test:boundary`)**: 5/5 passed (100% pass rate covering 7 domain payloads, 23h59m vs 24h01m timestamp boundaries, race-condition nonces, and real Solana Devnet on-chain error rejections: `InstructionError: ConstraintSeeds / 0x7d6`).
 - **Solana-Dev Invariant Suite (`npm run test:invariants`)**: 6/6 passed (100% pass rate covering Sysvar Clock time-warp, guardian anti-griefing 60-day limit, SPL Token `transfer_checked` with mint verification, Pyth sign-flip/300 bps confidence shields, 48h dispute proof-of-life rebuttal, and `close_vault` rent refund).
 - **Solana-Dev Chaos & Transaction v1 Suite (`npm run test:chaos`)**: 6/6 passed (100% pass rate covering Guardian vs Timelock race conditions, oracle flash crash, concurrent replay avalanche, and SIMD-0385 4096-byte v1 envelope & zero-duplicate account validation).
+- **Telegram Multi-Channel Notifier Suite (`npm run test:telegram`)**: 6/6 passed (100% pass rate covering HTML entity escaping against 400 Bad Request, token masking in error traces, timeout protection via AbortSignal, and plain-text fallback).
 
 ### Live Solana Devnet Deployment & Operational Vault PDA
 - **Program ID**: `E4dA4YrWnMgFv7NNseHjw8r2yikArPGiEnrxX4YYExdX`
@@ -104,5 +105,6 @@ Adds the `mermail-deadman-switch` skill: an autonomous digital contingency, inhe
 - **Boundary & Live On-Chain Rejection Suite (`npm run test:boundary`)**: 5/5 passed (100%).
 - **Solana-Dev Invariant Suite (`npm run test:invariants`)**: 6/6 passed (100%).
 - **Solana-Dev Chaos & Transaction v1 Suite (`npm run test:chaos`)**: 6/6 passed (100%).
-- **Total Testing Coverage**: 60/60 tests passing across all suites (100%).
+- **Telegram Notifier Suite (`npm run test:telegram`)**: 6/6 passed (100%).
+- **Total Testing Coverage**: 66/66 tests passing across all suites (100%).
 ```

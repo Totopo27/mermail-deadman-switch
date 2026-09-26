@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { DeadMansSwitchEngine } from "./deadman-engine.mjs";
+import { dispatchTelegramNotification, formatTelegramHtml } from "./telegram-notifier.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,37 +48,12 @@ const BENEFICIARY_WALLET = process.env.AGENT_WALLET_SOL; // Funded Solana Devnet
 const VERIFIED_DEVNET_TX_HASH = process.env.SOLANA_TX_HASH || "5bgzuHtYGFzcXj76tmzzEtb9ue8Ue5ZSDhKGhYqwgAaLSWQB4L1qsCMQAESMnqvo8WZKx5nQoaUvpNsswMqbUniP";
 const SOLANA_EXPLORER_TX_URL = `https://explorer.solana.com/tx/${VERIFIED_DEVNET_TX_HASH}?cluster=devnet`;
 
-async function dispatchTelegramAlert(message) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!botToken || !chatId) {
-    console.log("[NOTICE] Telegram multi-channel alert skipped (configure TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env to enable instant mobile push).");
-    return { skipped: true };
-  }
-
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: "Markdown"
-      })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      console.log(`[OK] Instant Telegram emergency alert delivered to Chat ID: ${chatId} (Message ID: ${data.result?.message_id})`);
-      return { success: true, messageId: data.result?.message_id };
-    } else {
-      console.warn(`[WARN] Telegram alert rejected by API: ${data.description}`);
-      return { success: false, error: data.description };
-    }
-  } catch (err) {
-    console.warn(`[WARN] Telegram network dispatch error: ${err.message}`);
-    return { success: false, error: err.message };
-  }
+async function dispatchTelegramAlert(htmlMessage, plainFallback) {
+  return dispatchTelegramNotification({
+    htmlMessage,
+    plainFallback,
+    timeoutMs: 8000
+  });
 }
 
 async function callMcp(apiKey, name, args) {
@@ -228,14 +204,26 @@ Mermail Dead Man's Switch Agent Vault`;
     console.log(`     Explorer:  ${SOLANA_EXPLORER_TX_URL}\n`);
 
     console.log("[5] Broadcasting redundant multi-channel notification (Telegram)...");
-    const telegramAlertText = `*DEAD MAN'S SWITCH CONTINGENCY ACTIVATED*\n\n` +
-      `*Principal:* ${OWNER_EMAIL}\n` +
-      `*Beneficiary:* ${BENEFICIARY_EMAIL}\n` +
-      `*Status:* Irrevocable contingency protocol triggered.\n` +
-      `*Directives Vault:* ${engine.state.contingencyDirectives.encryptedSecretVaultId}\n` +
-      `*Rescue Funds:* ${engine.state.contingencyDirectives.emergencyRescueSolAmount} SOL\n` +
-      `*On-chain Signature:* [${VERIFIED_DEVNET_TX_HASH}](${SOLANA_EXPLORER_TX_URL})`;
-    await dispatchTelegramAlert(telegramAlertText);
+    const telegramAlertHtml = formatTelegramHtml({
+      title: "DEAD MAN'S SWITCH CONTINGENCY ACTIVATED",
+      fields: [
+        { label: "Principal", value: OWNER_EMAIL },
+        { label: "Beneficiary", value: BENEFICIARY_EMAIL },
+        { label: "Status", value: "Irrevocable contingency protocol triggered" },
+        { label: "Directives Vault", value: engine.state.contingencyDirectives.encryptedSecretVaultId },
+        { label: "Rescue Funds", value: `${engine.state.contingencyDirectives.emergencyRescueSolAmount} SOL` },
+        { label: "On-chain Tx", value: VERIFIED_DEVNET_TX_HASH }
+      ],
+      link: { label: "Verify on Solana Explorer", url: SOLANA_EXPLORER_TX_URL }
+    });
+    const telegramAlertPlain = `DEAD MAN'S SWITCH CONTINGENCY ACTIVATED\n\n` +
+      `Principal: ${OWNER_EMAIL}\n` +
+      `Beneficiary: ${BENEFICIARY_EMAIL}\n` +
+      `Status: Irrevocable contingency protocol triggered.\n` +
+      `Directives Vault: ${engine.state.contingencyDirectives.encryptedSecretVaultId}\n` +
+      `Rescue Funds: ${engine.state.contingencyDirectives.emergencyRescueSolAmount} SOL\n` +
+      `On-chain Tx: ${SOLANA_EXPLORER_TX_URL}`;
+    await dispatchTelegramAlert(telegramAlertHtml, telegramAlertPlain);
 
   } else if (statusEval.isWarning) {
     console.log(`[WARNING] Heartbeat interval exceeded ${statusEval.daysOverdue} days ago.`);
@@ -269,12 +257,21 @@ Mermail Dead Man's Switch Agent Vault`;
     console.log("   - Message ID:", warnRes.result?.content?.[0]?.text || "Delivered");
     console.log("   - Switch Status: [WARNING_ISSUED]\n");
 
-    const telegramWarnText = `*DEAD MAN'S SWITCH WARNING*\n\n` +
-      `*Principal:* ${OWNER_EMAIL}\n` +
-      `*Notice:* Inactivity threshold reached. Grace period active.\n` +
-      `*Grace Hours Remaining:* ${statusEval.graceHoursRemaining}h\n` +
-      `*Action Required:* Submit [CHECK-IN] to custodian mailbox to avoid irrevocable contingency release.`;
-    await dispatchTelegramAlert(telegramWarnText);
+    const telegramWarnHtml = formatTelegramHtml({
+      title: "DEAD MAN'S SWITCH WARNING",
+      fields: [
+        { label: "Principal", value: OWNER_EMAIL },
+        { label: "Notice", value: "Inactivity threshold reached. Grace period active." },
+        { label: "Grace Hours Remaining", value: `${statusEval.graceHoursRemaining}h` },
+        { label: "Action Required", value: "Submit [CHECK-IN] to custodian mailbox to avoid irrevocable contingency release." }
+      ]
+    });
+    const telegramWarnPlain = `DEAD MAN'S SWITCH WARNING\n\n` +
+      `Principal: ${OWNER_EMAIL}\n` +
+      `Notice: Inactivity threshold reached. Grace period active.\n` +
+      `Grace Hours Remaining: ${statusEval.graceHoursRemaining}h\n` +
+      `Action Required: Submit [CHECK-IN] to custodian mailbox to avoid irrevocable contingency release.`;
+    await dispatchTelegramAlert(telegramWarnHtml, telegramWarnPlain);
 
   } else {
     console.log(`[INFO] Switch operating normally (ARMED). ${statusEval.daysRemaining} days remaining until next check-in.`);

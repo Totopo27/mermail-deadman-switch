@@ -14,6 +14,7 @@
 
 import { DeadMansSwitchEngine, NotaryAgentAdvisor } from "./deadman-engine.mjs";
 import { splitSecret } from "./shamir.mjs";
+import { dispatchTelegramNotification, formatTelegramHtml } from "./telegram-notifier.mjs";
 
 // In-memory fallback for local execution / testing without KV
 const memoryStore = new Map();
@@ -149,6 +150,28 @@ export default {
         });
         console.log(`[CRON]: Shard #2 and contingency directives dispatched to beneficiary via Mermail.`);
       }
+
+      // Multi-channel redundancy: Telegram mobile push notification
+      if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+        const tgHtml = formatTelegramHtml({
+          title: "DEAD MAN'S SWITCH CONTINGENCY ACTIVATED",
+          fields: [
+            { label: "Principal", value: engine.ownerEmail },
+            { label: "Beneficiary", value: engine.beneficiaryEmail },
+            { label: "Status", value: "Irrevocable contingency protocol triggered" },
+            { label: "Directives Vault", value: engine.state.contingencyDirectives?.encryptedSecretVaultId || "Vault-Alpha" },
+            { label: "Rescue Funds", value: "0.05 SOL" }
+          ]
+        });
+        const tgPlain = `DEAD MAN'S SWITCH CONTINGENCY ACTIVATED\nPrincipal: ${engine.ownerEmail}\nBeneficiary: ${engine.beneficiaryEmail}\nStatus: Contingency protocol triggered.`;
+        await dispatchTelegramNotification({
+          botToken: env.TELEGRAM_BOT_TOKEN,
+          chatId: env.TELEGRAM_CHAT_ID,
+          htmlMessage: tgHtml,
+          plainFallback: tgPlain
+        });
+      }
+
       engine.state.contingencyDelivered = true;
     }
     // B. WARNING_ISSUED: Alerta escalonada al dueño
@@ -161,6 +184,27 @@ export default {
           text: `Aviso de contingencia: No se detectó actividad on-chain ni pulso de vida. Restan ${evalRes.graceHoursRemaining} horas antes de la ejecución irrevocable.`
         });
       }
+
+      // Multi-channel redundancy: Telegram warning alert
+      if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+        const tgWarnHtml = formatTelegramHtml({
+          title: "DEAD MAN'S SWITCH WARNING",
+          fields: [
+            { label: "Principal", value: engine.ownerEmail },
+            { label: "Notice", value: "Inactivity threshold reached. Grace window open." },
+            { label: "Grace Hours Remaining", value: `${evalRes.graceHoursRemaining}h` },
+            { label: "Action Required", value: "Submit check-in email to avoid irrevocable release." }
+          ]
+        });
+        const tgWarnPlain = `DEAD MAN'S SWITCH WARNING\nPrincipal: ${engine.ownerEmail}\nGrace Hours Remaining: ${evalRes.graceHoursRemaining}h`;
+        await dispatchTelegramNotification({
+          botToken: env.TELEGRAM_BOT_TOKEN,
+          chatId: env.TELEGRAM_CHAT_ID,
+          htmlMessage: tgWarnHtml,
+          plainFallback: tgWarnPlain
+        });
+      }
+
       engine.state.warningSentToday = true;
     }
 

@@ -14,7 +14,12 @@
 
 import { DeadMansSwitchEngine, NotaryAgentAdvisor } from "./deadman-engine.mjs";
 import { splitSecret } from "./shamir.mjs";
-import { dispatchTelegramNotification, formatTelegramHtml } from "./telegram-notifier.mjs";
+import {
+  dispatchTelegramNotification,
+  formatTelegramHtml,
+  validateTelegramWebhookSecret,
+  isAuthorizedTelegramSender
+} from "./telegram-notifier.mjs";
 
 // In-memory fallback for local execution / testing without KV
 const memoryStore = new Map();
@@ -309,6 +314,48 @@ export default {
             message: "Inbound message processed; heartbeat not recognized or rejected."
           }), { headers: { "content-type": "application/json" } });
         }
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      }
+    }
+
+    // Receptor de Webhooks de Telegram (Con autenticación X-Telegram-Bot-Api-Secret-Token)
+    if (url.pathname === "/webhooks/telegram" && request.method === "POST") {
+      try {
+        const secretHeader = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+        if (env.TELEGRAM_WEBHOOK_SECRET && !validateTelegramWebhookSecret(secretHeader, env.TELEGRAM_WEBHOOK_SECRET)) {
+          return new Response(JSON.stringify({ error: "Unauthorized: Invalid webhook secret token" }), {
+            status: 403,
+            headers: { "content-type": "application/json" }
+          });
+        }
+
+        const update = await request.json();
+        const chatId = update.message?.chat?.id || update.callback_query?.message?.chat?.id;
+
+        // Validar lista blanca de remitentes si está configurada
+        if (env.TELEGRAM_CHAT_ID && !isAuthorizedTelegramSender(chatId, env.TELEGRAM_CHAT_ID)) {
+          return new Response(JSON.stringify({ error: "Forbidden: Sender chat ID not authorized" }), {
+            status: 403,
+            headers: { "content-type": "application/json" }
+          });
+        }
+
+        const text = (update.message?.text || "").trim();
+        const switchId = "DMS-VAULT-2026-XEN";
+        const stored = await getState(env, switchId);
+
+        if (text === "/status") {
+          return new Response(JSON.stringify({
+            ok: true,
+            reply: `Dead Man's Switch Status: ${stored ? stored.status : 'NOT_CONFIGURED'}`,
+            switchId
+          }), { headers: { "content-type": "application/json" } });
+        }
+
+        return new Response(JSON.stringify({ ok: true, processed: true }), {
+          headers: { "content-type": "application/json" }
+        });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500 });
       }
